@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Single-module project: ship only server.py (no package directory).
+[tool.hatch.build.targets.wheel]
+include = ["server.py"]
+
+[project]
+name = "shared-knowledge-mcp"
+version = "0.1.0"
+description = "Turn solved problems into shared knowledge: an MCP server that searches a community knowledge base and submits solutions as GitHub Pull Requests."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Pascal CESCATO" }]
+keywords = ["mcp", "model-context-protocol", "knowledge-base", "ai"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "mcp>=1.2,<2",
+    "pydantic>=2,<3",
+    "python-frontmatter>=1.1,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

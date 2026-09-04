@@ -12,8 +12,11 @@ search_knowledge and get_knowledge already work against a local
 for the demo; swap the naive grep for the public GitHub repo once it
 exists). publish_knowledge is fully wired except for the two external
 calls left as TODOs: the LLM call (Gemini / Google AI) and the GitHub
-API call to open the Pull Request - those are the pieces to fill in
-this weekend.
+API call to open the Pull Request.
+
+get_knowledge resolves `id` inside KNOWLEDGE_DIR and refuses anything
+that escapes it (path traversal) or that does not exist - it returns a
+clean MCP-level error instead of a raw FileNotFoundError.
 
 Run for local testing with the MCP dev inspector:
     mcp dev server.py
@@ -25,8 +28,10 @@ import glob
 import os
 import re
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
+import frontmatter
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
@@ -53,6 +58,10 @@ CATEGORIES = [
 KNOWLEDGE_DIR = os.environ.get("KNOWLEDGE_DIR", "./knowledge")
 
 REQUIRED_SECTIONS = ["## Problem", "## Solution"]
+
+# Pre-moderation limits - spec section 11 ("empty or meaningless content",
+# "excessively long content") without any external moderation API.
+MAX_CONTENT_LENGTH = 50_000
 
 # Patterns for the pre-moderation secret scan (spec section 18).
 # Deliberately conservative - false positives are cheap (a maintainer
@@ -93,17 +102,18 @@ def search_knowledge(query: str) -> SearchOutput:
     results: list[SearchResult] = []
 
     for path in glob.glob(os.path.join(KNOWLEDGE_DIR, "**", "*.md"), recursive=True):
-        with open(path, "r", encoding="utf-8") as f:
-            content = f.read()
-        if terms and not any(term in content.lower() for term in terms):
+        post = frontmatter.load(path)
+        if terms and not any(
+            term in post.content.lower() or term in _meta_text(post.metadata).lower()
+            for term in terms
+        ):
             continue
-        meta = _parse_frontmatter(content)
         results.append(
             SearchResult(
-                title=meta.get("title", os.path.basename(path)),
-                category=meta.get("category", "Other"),
+                title=post.get("title", os.path.basename(path)),
+                category=post.get("category", "Other"),
                 url=path,
-                summary=meta.get("description", ""),
+                summary=post.get("description", ""),
             )
         )
 
@@ -126,11 +136,31 @@ def get_knowledge(id: str) -> GetKnowledgeOutput:
 
     `id` is the article's file path (as returned by search_knowledge) or
     a bare slug resolved against KNOWLEDGE_DIR.
+
+    The resolved path must stay inside KNOWLEDGE_DIR: traversal attempts
+    (e.g. "../../etc/passwd" or absolute paths outside the knowledge
+    base) raise a clean MCP-level ValueError instead of reading arbitrary
+    files. A nonexistent article raises ValueError as well, rather than
+    leaking a raw FileNotFoundError to the MCP client.
     """
-    path = id if id.endswith(".md") else os.path.join(KNOWLEDGE_DIR, f"{id}.md")
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-    return GetKnowledgeOutput(id=id, content=content, metadata=_parse_frontmatter(content))
+    base = Path(KNOWLEDGE_DIR).resolve()
+    candidate = Path(id if id.endswith(".md") else f"{id}.md")
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(base):
+        raise ValueError(
+            f"invalid article id {id!r}: path escapes the knowledge base"
+        )
+    if not resolved.is_file():
+        raise ValueError(f"article not found: {id!r}")
+
+    post = frontmatter.load(resolved)
+    return GetKnowledgeOutput(
+        id=id,
+        content=frontmatter.dumps(post),
+        metadata=post.metadata,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -193,8 +223,14 @@ def _validate_article(article: dict) -> list[str]:
         problems.append(f"unknown category: {article.get('category')!r}")
     if not article.get("title"):
         problems.append("missing title")
+    if not article.get("description"):
+        problems.append("missing description")
 
     content = article.get("content", "")
+    if not content.strip():
+        problems.append("empty content")
+    if len(content) > MAX_CONTENT_LENGTH:
+        problems.append(f"content exceeds {MAX_CONTENT_LENGTH} characters")
     missing_sections = [s for s in REQUIRED_SECTIONS if s not in content]
     if missing_sections:
         problems.append(f"missing required section(s): {', '.join(missing_sections)}")
@@ -213,19 +249,22 @@ def _looks_like_secret(text: str) -> bool:
 
 
 def _parse_frontmatter(content: str) -> dict:
-    """Minimal YAML-frontmatter reader for the MVP - swap for `python-frontmatter` when there's time."""
-    if not content.startswith("---"):
-        return {}
-    try:
-        _, fm, _ = content.split("---", 2)
-    except ValueError:
-        return {}
-    meta: dict = {}
-    for line in fm.strip().splitlines():
-        if ":" in line and not line.strip().startswith("-"):
-            key, _, value = line.partition(":")
-            meta[key.strip()] = value.strip().strip('"')
-    return meta
+    """Deprecated shim kept for compatibility - use frontmatter.load() directly."""
+    return frontmatter.loads(content).metadata
+
+
+def _meta_text(metadata: dict) -> str:
+    """Flatten frontmatter metadata to text for naive keyword matching."""
+    def _flatten(value) -> str:
+        if isinstance(value, dict):
+            return " ".join(
+                f"{k} {_flatten(v)}" for k, v in value.items() if isinstance(k, str)
+            )
+        if isinstance(value, (list, tuple)):
+            return " ".join(_flatten(v) for v in value)
+        return str(value)
+
+    return _flatten(metadata)
 
 
 # --------------------------------------------------------------------------

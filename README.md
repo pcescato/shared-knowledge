@@ -160,44 +160,19 @@ Turn the relevant part of the current conversation into a standalone English kno
 Requirements:
 
 - Python 3.10+
-- The [`mcp` Python SDK](https://github.com/modelcontextprotocol/python-sdk) (`pip install "mcp[cli]"`) and `pydantic`
 - For `publish_knowledge` (once wired): a Gemini (Google AI) API key and a GitHub token — see [Configuration](#configuration)
 
-```bash
-git clone https://github.com/<owner>/shared-knowledge-mcp.git
-cd shared-knowledge-mcp
-pip install "mcp[cli]" pydantic
-```
-
-Seed a local knowledge base so `search_knowledge` / `get_knowledge` have something to work with:
+Dependencies (`mcp`, `pydantic`, `python-frontmatter`) are declared in `pyproject.toml`. Install the project in editable mode with its dev tools:
 
 ```bash
-mkdir -p knowledge/devops
-cat > knowledge/devops/caddy-authentik-streamlit.md <<'EOF'
----
-title: "Protecting Streamlit with Caddy and Authentik"
-description: "How to protect a Streamlit application using Caddy and Authentik forward authentication."
-category: "DevOps"
-tags:
-  - caddy
-  - authentik
-  - reverse-proxy
-  - sso
-source: "community"
-created_at: "2026-09-04"
----
-
-# Protecting Streamlit with Caddy and Authentik
-
-## Problem
-
-Streamlit applications have no built-in authentication…
-
-## Solution
-
-Use Caddy as a reverse proxy with Authentik forward authentication…
-EOF
+git clone https://github.com/pcescato/shared-knowledge.git
+cd shared-knowledge
+pip install -e . --group dev
 ```
+
+> Using `pip` < 25.1 or another tool? The equivalent is `pip install -e . && pip install pytest` (or `uv sync --dev` with [uv](https://docs.astral.sh/uv/)).
+
+A small seed knowledge base already lives in [`knowledge/`](knowledge/) so `search_knowledge` / `get_knowledge` work out of the box.
 
 ## Usage
 
@@ -355,6 +330,8 @@ The public knowledge base is a fully static **Astro + Starlight** website deploy
 shared-knowledge-mcp/
 ├── server.py                  # MCP server (search / get / publish tools)
 ├── Shared Knowledge MCP.md    # Functional & technical specification
+├── pyproject.toml             # Packaging & dependencies (Python 3.10+)
+├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation)
 ├── knowledge/                 # Markdown knowledge base (YAML frontmatter)
 │   ├── ai/
 │   ├── backend/
@@ -400,8 +377,9 @@ You can also open a Pull Request manually: add a Markdown article under `knowled
 
 1. Fork the repository and create a feature branch;
 2. Make your changes (the two remaining TODOs in `server.py` — `_generate_article` and `_create_pull_request` — are a great place to start);
-3. Test locally with `mcp dev server.py`;
-4. Open a Pull Request.
+3. Run the test suite: `pytest`;
+4. Test the server locally with `mcp dev server.py`;
+5. Open a Pull Request.
 
 ## License
 
