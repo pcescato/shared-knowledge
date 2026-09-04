@@ -12,8 +12,6 @@ source: "community"
 created_at: "2026-09-04"
 ---
 
-# Protecting Streamlit with Caddy and Authentik
-
 ## Problem
 
 Streamlit applications have no built-in authentication mechanism. When exposed behind

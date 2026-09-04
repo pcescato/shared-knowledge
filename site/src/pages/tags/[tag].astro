@@ -1,8 +1,7 @@
 ---
 // One page per tag: /tags/<tag>/
 import { getCollection } from 'astro:content';
-import BaseHead from '../../components/BaseHead.astro';
-import KBHeader from '../../components/KBHeader.astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { categoryDir, withBase } from '../../lib/knowledge.js';
 
 export async function getStaticPaths() {
@@ -25,31 +24,25 @@ const articles = Astro.props.articles.sort((a, b) =>
   a.data.title.localeCompare(b.data.title),
 );
 const title = `#${tag}`;
+const frontmatter = {
+  title,
+  description: `Articles tagged #${tag} in the shared knowledge base.`,
+};
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <BaseHead title={title} description={`Articles tagged #${tag} in the shared knowledge base.`} />
-  </head>
-  <body>
-    <KBHeader />
-    <main class="kb-page">
-      <h1>{title}</h1>
-      <p class="kb-meta">{articles.length} article{articles.length === 1 ? '' : 's'} with this tag.</p>
-      <ul class="kb-list">
-        {articles.map((article) => (
-          <li>
-            <a href={withBase(`${categoryDir(article.data.category)}/${article.id.split('/')[1]}`)}>
-              {article.data.title}
-            </a>
-            <span class="kb-meta">
-              {article.data.category} · {article.data.created_at}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p><a href={withBase('tags/')}>← All tags</a></p>
-    </main>
-  </body>
-</html>
+<StarlightPage frontmatter={frontmatter}>
+  <p class="kb-meta">{articles.length} article{articles.length === 1 ? '' : 's'} with this tag.</p>
+  <ul class="kb-list">
+    {articles.map((article) => (
+      <li>
+        <a href={withBase(`${categoryDir(article.data.category)}/${article.id.split('/')[1]}`)}>
+          {article.data.title}
+        </a>
+        <span class="kb-meta">
+          {article.data.category} · {article.data.created_at}
+        </span>
+      </li>
+    ))}
+  </ul>
+  <p><a href={withBase('tags')}>← All tags</a></p>
+</StarlightPage>

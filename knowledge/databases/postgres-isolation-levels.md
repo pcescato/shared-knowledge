@@ -10,8 +10,6 @@ source: "community"
 created_at: "2026-09-04"
 ---
 
-# Choosing a Postgres isolation level for read-heavy APIs
-
 ## Problem
 
 APIs backed by Postgres often read data that must be internally consistent within a

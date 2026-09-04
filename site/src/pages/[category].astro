@@ -1,8 +1,7 @@
 ---
 // Category landing pages: /<category-dir>/ (e.g. /devops/, /web-development/)
 import { getCollection } from 'astro:content';
-import BaseHead from '../components/BaseHead.astro';
-import KBHeader from '../components/KBHeader.astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { CATEGORIES, categoryDir, withBase } from '../lib/knowledge.js';
 
 export async function getStaticPaths() {
@@ -21,37 +20,31 @@ export async function getStaticPaths() {
 const { category } = Astro.props;
 const articles = Astro.props.articles;
 const title = `${category} articles`;
+const frontmatter = {
+  title,
+  description: `Knowledge articles in the ${category} category.`,
+};
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <BaseHead title={title} description={`Knowledge articles in the ${category} category.`} />
-  </head>
-  <body>
-    <KBHeader />
-    <main class="kb-page">
-      <h1>{title}</h1>
-      {
-        articles.length === 0 && (
-          <p>
-            No articles in this category yet. Categories are part of a controlled
-            vocabulary — new articles arrive here as their Pull Requests are merged.
-          </p>
-        )
-      }
-      <ul class="kb-list">
-        {articles.map((article) => (
-          <li>
-            <a href={withBase(`${categoryDir(article.data.category)}/${article.id.split('/')[1]}`)}>
-              {article.data.title}
-            </a>
-            <span class="kb-meta">
-              {article.data.created_at} · {article.data.description}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </main>
-  </body>
-</html>
+<StarlightPage frontmatter={frontmatter}>
+  {
+    articles.length === 0 && (
+      <p>
+        No articles in this category yet. Categories are part of a controlled
+        vocabulary — new articles arrive here as their Pull Requests are merged.
+      </p>
+    )
+  }
+  <ul class="kb-list">
+    {articles.map((article) => (
+      <li>
+        <a href={withBase(`${categoryDir(article.data.category)}/${article.id.split('/')[1]}`)}>
+          {article.data.title}
+        </a>
+        <span class="kb-meta">
+          {article.data.created_at} · {article.data.description}
+        </span>
+      </li>
+    ))}
+  </ul>
+</StarlightPage>

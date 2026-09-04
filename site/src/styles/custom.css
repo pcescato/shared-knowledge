@@ -2,9 +2,20 @@
    Deliberately minimal: the goal is a serious knowledge base, not a product
    landing page. */
 
-/* Slightly narrower measure for comfortable article reading. */
+/* Use full available width between sidebar and TOC panel. */
 main {
-  max-width: 76ch;
+  max-width: none;
+}
+
+/* Override Starlight's container width constraints to fill space */
+.sl-container {
+  max-width: none;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.content-panel {
+  max-width: none;
 }
 
 /* Breadcrumb + audio player styles for article pages. */

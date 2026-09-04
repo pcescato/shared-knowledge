@@ -1,0 +1,99 @@
+---
+// Home page, rendered with Starlight's full layout (nav, sidebar, search, header).
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { withBase } from '../lib/knowledge.js';
+
+const frontmatter = {
+  title: 'Shared Knowledge',
+  description:
+    'A community knowledge base built around AI-assisted problem solving - solved problems, shared on purpose.',
+};
+---
+
+<StarlightPage frontmatter={frontmatter}>
+  <div class="sl-markdown-content">
+    <div class="sl-callout note">
+      <p class="sl-callout-title">The idea</p>
+      <p>
+        AI makes it increasingly easy to solve individual problems — and every solved problem is
+        potentially reusable knowledge. Shared Knowledge turns that knowledge into a public, versioned,
+        human-reviewed documentation site.
+      </p>
+    </div>
+
+    <p>The pipeline is deliberately simple:</p>
+
+    <pre class="shiki" style="background-color: #011627"><code><span class="line"><span style="color: #d6deeb">Private conversation → AI-assisted solution → user chooses to share</span></span>
+<span class="line"><span style="color: #d6deeb">→ MCP structures the knowledge → GitHub Pull Request → human review</span></span>
+<span class="line"><span style="color: #d6deeb">→ merge → published here (with an optional audio version)</span></span></code></pre>
+
+    <p>
+      <strong>The conversation remains private. The knowledge extracted from it can be shared.</strong> Sharing
+      is always explicit and voluntary; nothing is published without human review.
+    </p>
+
+    <blockquote>
+      <p><strong>Don't just get the answer. Give the answer back.</strong></p>
+    </blockquote>
+
+    <h2 id="browse-the-knowledge-base">Browse the knowledge base</h2>
+
+    <ul>
+      <li>
+        <strong>By category</strong> — use the sidebar (AI, Backend, Databases, DevOps, …) to browse the
+        controlled category vocabulary. Every article belongs to exactly one category.
+      </li>
+      <li>
+        <strong>By tag</strong> — the <a href={withBase('tags')}>tags index</a> lists every generated tag.
+      </li>
+      <li>
+        <strong>By search</strong> — use the search field in the header for full-text search across all
+        articles.
+      </li>
+      <li>
+        <strong>By ear</strong> — articles with a recorded version show a <em>Listen to this article</em> player.
+      </li>
+    </ul>
+
+    <h2 id="for-contributors">For contributors</h2>
+
+    <p>
+      The primary way to contribute is through your AI assistant: solve a problem, then say <em>
+        "Share this solution with the community."
+      </em> Your assistant submits a Pull Request; a human maintainer reviews it before publication. You can also
+      add an article manually under <code>knowledge/&lt;category>/</code> in the{' '}
+      <a href="https://github.com/pcescato/shared-knowledge">repository</a>.
+    </p>
+  </div>
+</StarlightPage>
+
+<style>
+  .sl-callout {
+    border: 1px solid var(--sl-color-accent);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    background: var(--sl-color-accent, var(--sl-color-gray-6));
+  }
+
+  .sl-callout-title {
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    color: var(--sl-color-accent);
+  }
+
+  .sl-callout p:last-child {
+    margin-bottom: 0;
+  }
+
+  .sl-markdown-content > pre {
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+  }
+
+  .kb-page {
+    max-width: 100%;
+  }
+</style>
