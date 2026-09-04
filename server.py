@@ -13,9 +13,9 @@ for the demo; swap the naive grep for the public GitHub repo once it
 exists). search_knowledge ranks matches with a simple deterministic
 field-weighting scheme - see FIELD_WEIGHTS below - no embeddings, no
 vector database, no external service. publish_knowledge generates the
-article through the isolated LLM provider in llm.py (Gemini by default,
-see that module) - the GitHub API call to open the Pull Request is the
-remaining TODO.
+article through the isolated LLM provider in llm.py (Gemini by default)
+and submits it as a GitHub Pull Request through the isolated publisher
+in github.py - never by committing to the default branch.
 
 get_knowledge resolves `id` inside KNOWLEDGE_DIR and refuses anything
 that escapes it (path traversal) or that does not exist - it returns a
@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 import frontmatter
+from github import PublisherError, create_pull_request
 from llm import ProviderError, generate_article
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
@@ -254,7 +255,8 @@ def publish_knowledge(input: PublishInput) -> PublishOutput:
 
     try:
         pr_url = _create_pull_request(article)
-    except NotImplementedError as exc:
+    except PublisherError as exc:
+        # Missing token, API failure, duplicate article path...
         return PublishOutput(status="error", error=str(exc))
     except Exception as exc:  # noqa: BLE001
         return PublishOutput(status="error", error=f"PR creation failed: {exc}")
@@ -329,8 +331,9 @@ def _searchable_fields(post: frontmatter.Post) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------
-# External calls - the LLM side is done (llm.py); the GitHub API call to
-# open the Pull Request is the remaining piece.
+# External integrations - both are now implemented and isolated:
+#   - llm.py    : Gemini article generation (LLM_PROVIDER)
+#   - github.py : PR-based publication workflow (GITHUB_TOKEN)
 # --------------------------------------------------------------------------
 
 def _generate_article(excerpt: str, language_hint: Optional[str]) -> dict:
@@ -357,14 +360,21 @@ def _generate_article(excerpt: str, language_hint: Optional[str]) -> dict:
 
 
 def _create_pull_request(article: dict) -> str:
-    """Create a branch, commit `knowledge/<category>/<slug>.md`, and open a PR.
+    """Submit the article as a GitHub Pull Request and return the PR URL.
 
-    `article["content"]` should already include the frontmatter block
-    (title, description, category, tags, source: "community",
-    created_at: today's date) before being written to disk / committed.
-    Returns the PR URL.
+    Delegates to github.create_pull_request, which (spec section 14):
+      1. creates a unique contribution branch from the default branch;
+      2. commits `knowledge/<category>/<slug>.md` with frontmatter
+         (title, description, category, tags, source: "community",
+         created_at);
+      3. opens a Pull Request targeting the default branch.
+
+    CRITICAL: it never commits to the default/production branch - the PR
+    is the publication request and only a human merge publishes the
+    article. Raises github.PublisherError on missing token, API failure,
+    or an already-existing article (clean failure, never overwrites).
     """
-    raise NotImplementedError("TODO: wire the GitHub API call here")
+    return create_pull_request(article)
 
 
 if __name__ == "__main__":

@@ -183,16 +183,19 @@ class TestPublishKnowledgeWiring:
         assert output.status == "error"
         assert "invalid structured output" in output.error
 
-    def test_full_pipeline_with_valid_generation_is_rejected_by_github_stub(self, monkeypatch):
-        """Generation succeeds -> validation passes -> GitHub stub still TODO."""
+    def test_full_pipeline_reaches_github_submission(self, monkeypatch):
+        """Generation succeeds -> validation passes -> GitHub publisher runs.
+
+        With no GITHUB_TOKEN the publisher fails cleanly, proving the pipeline
+        flows from LLM generation all the way to the submission step.
+        """
         monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         with _patch_call(json.dumps(VALID_RESPONSE)):
             output = server.publish_knowledge(
                 server.PublishInput(
                     conversation_excerpt="solved problem text", language_hint="French"
                 )
             )
-        # GitHub integration is out of scope; the stub raises NotImplementedError,
-        # which publish_knowledge maps to a clean error.
         assert output.status == "error"
-        assert "GitHub API call" in output.error
+        assert "GITHUB_TOKEN is not set" in output.error

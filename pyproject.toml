@@ -30,9 +30,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# LLM provider: publish_knowledge needs this extra (kept optional so the
-# search/get tools work without it).
+# publish_knowledge providers (kept optional so the search/get tools work
+# without them).
 gemini = ["google-genai>=1,<2"]
+ publishing = ["httpx>=0.27,<1"]
 
 [dependency-groups]
 dev = [

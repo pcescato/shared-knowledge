@@ -160,7 +160,7 @@ Turn the relevant part of the current conversation into a standalone English kno
 Requirements:
 
 - Python 3.10+
-- For `publish_knowledge` (once wired): a Gemini (Google AI) API key and a GitHub token — see [Configuration](#configuration)
+- For `publish_knowledge`: a Gemini (Google AI) API key and a GitHub token — see [Configuration](#configuration)
 
 Dependencies (`mcp`, `pydantic`, `python-frontmatter`) are declared in `pyproject.toml`. Install the project in editable mode with its dev tools:
 
@@ -170,10 +170,10 @@ cd shared-knowledge
 pip install -e . --group dev
 ```
 
-To use `publish_knowledge`, also install the LLM provider extra:
+To use `publish_knowledge`, also install the provider extras (LLM + GitHub publication):
 
 ```bash
-pip install -e '.[gemini]' --group dev
+pip install -e '.[gemini,publishing]' --group dev
 ```
 
 > Using `pip` < 25.1 or another tool? The equivalent is `pip install -e . && pip install pytest` (or `uv sync --dev` with [uv](https://docs.astral.sh/uv/)).
@@ -235,9 +235,20 @@ AI:    (calls publish_knowledge with the relevant conversation excerpt)
 | `GEMINI_API_KEY` | — | **Required for `publish_knowledge`.** API key for the Gemini (Google AI) call used to generate the article. Get one in [Google AI Studio](https://aistudio.google.com/apikey) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for article generation |
 | `LLM_PROVIDER` | `gemini` | LLM provider selection. The provider implementation is isolated in [`llm.py`](llm.py); add a provider there to swap Gemini without touching the MCP tools |
-| *(GitHub credentials)* | — | Token used by `_create_pull_request` (not implemented yet); must be stored **outside** the repository and scoped to the minimum permissions needed to create branches, commits and Pull Requests |
+| `GITHUB_TOKEN` | — | **Required for `publish_knowledge`.** GitHub token used to create the contribution branch, commit the article and open the Pull Request. Minimum permissions: fine-grained PAT with **Contents: read and write** + **Pull requests: write** on `pcescato/shared-knowledge` only (classic PAT: `repo` scope) |
+| `GITHUB_REPO` | `pcescato/shared-knowledge` | Repository of record — the source of truth for community knowledge |
 
 No credentials are hard-coded: everything is read from environment variables. The article is requested as **structured JSON** constrained by a Pydantic schema (`ArticleDraft` in `llm.py`) — the LLM can never pick an arbitrary category (the list is enforced in the prompt and re-validated against `CATEGORIES` afterwards), and any API or malformed-response failure surfaces as a clean `error` from `publish_knowledge` rather than a fabricated article.
+
+### Publication workflow (GitHub)
+
+The publication side is isolated in [`github.py`](github.py). When `publish_knowledge` reaches the submission step, it:
+
+1. creates a unique contribution branch (`knowledge/contribution-YYYY-MM-DD-<slug>`) from the repository's default branch;
+2. commits the article to `knowledge/<category>/<slug>.md` with YAML frontmatter (`title`, `description`, `category`, `tags`, `source: community`, `created_at`);
+3. opens a Pull Request targeting the default branch and returns its URL.
+
+**The tool never commits to the default branch** — the Pull Request *is* the publication request, and only a human maintainer merging it makes the contribution eligible for publication. If an article already exists at the target path, the submission fails cleanly instead of overwriting it. A failed run rolls back its contribution branch.
 
 GitHub authentication credentials used by the MCP must never be committed to the repository.
 
@@ -340,6 +351,7 @@ The public knowledge base is a fully static **Astro + Starlight** website deploy
 shared-knowledge-mcp/
 ├── server.py                  # MCP server (search / get / publish tools)
 ├── llm.py                     # Isolated LLM provider (Gemini, structured output)
+├── github.py                  # Isolated GitHub publisher (branch → commit → PR)
 ├── Shared Knowledge MCP.md    # Functional & technical specification
 ├── pyproject.toml             # Packaging & dependencies (Python 3.10+)
 ├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation)
@@ -367,7 +379,7 @@ shared-knowledge-mcp/
 
 The MVP deliberately excludes user accounts, profiles, reputation, voting, comments, social features, a custom admin interface, vector databases, automatic publication without review, conversation storage and analytics. Future possibilities (explicitly out of MVP scope) include:
 
-- semantic / vector search and duplicate detection;
+- semantic / vector search and duplicate detection (existing-article paths currently fail the submission cleanly);
 - article relationships and knowledge freshness detection;
 - automatic link checking and quality scoring;
 - multiple language views;
@@ -387,7 +399,7 @@ You can also open a Pull Request manually: add a Markdown article under `knowled
 ### As a code contributor
 
 1. Fork the repository and create a feature branch;
-2. Make your changes (the remaining TODO in `server.py` — `_create_pull_request` — is a great place to start);
+2. Make your changes (both external integrations — [`llm.py`](llm.py) and [`github.py`](github.py) — are small and self-contained, good places to start);
 3. Run the test suite: `pytest`;
 4. Test the server locally with `mcp dev server.py`;
 5. Open a Pull Request.
