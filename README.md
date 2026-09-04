@@ -47,6 +47,7 @@ Available to the next user
 - [Classification & tags](#classification--tags)
 - [Article format](#article-format)
 - [Moderation & privacy](#moderation--privacy)
+- [Audio versions (ElevenLabs)](#audio-versions-elevenlabs)
 - [Public website](#public-website)
 - [Repository structure](#repository-structure)
 - [Roadmap](#roadmap)
@@ -341,6 +342,49 @@ The project never publishes complete AI conversations — only the generated kno
 
 > **Private conversation, public knowledge.**
 
+## Audio versions (ElevenLabs)
+
+Every published article can have an audio version, so the shared knowledge can also be *listened to*.
+
+> **The published article is the source of truth; ElevenLabs gives that validated knowledge a voice.**
+
+### Why audio is generated after human review
+
+Audio is **never** generated when `publish_knowledge()` opens the Pull Request. The authoritative sequence is:
+
+```text
+MCP → Markdown article → GitHub Pull Request → Human review → Merge
+     → GitHub Action → ElevenLabs → Audio artifact
+```
+
+Generating audio only after a maintainer merges the article means the spoken version is always derived from **validated, approved content** — never from an unreviewed submission. The final Markdown article is the sole source for the speech text; the original conversation is never involved.
+
+### How it works
+
+The [`.github/workflows/audio.yml`](.github/workflows/audio.yml) workflow runs when knowledge articles land on the default branch. A small script ([`scripts/generate_audio.py`](scripts/generate_audio.py)):
+
+1. strips the YAML frontmatter and converts the Markdown body into clean spoken text (no code blocks, no link URLs, no markup);
+2. sends that text to ElevenLabs;
+3. saves the audio at a **deterministic path** mirroring the article:
+
+```text
+knowledge/<category>/<slug>.md  →  site/public/audio/<category>/<slug>.mp3
+```
+
+4. records a content hash in `.audio_manifest.json`.
+
+The audio files and the manifest are committed to the repository, so the static site simply ships them. Generation is **idempotent**: only new or changed articles are sent to ElevenLabs (manifest hash + audio file presence), never every article on every deployment. If ElevenLabs fails for an article, the Markdown article remains valid, no audio is claimed for it (nothing is committed for that article), and the workflow fails loudly with a clear report.
+
+### Configuration
+
+Configure these as **repository secrets** (Settings → Secrets and variables → Actions) — never committed to the repository:
+
+| Secret | Required | Description |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | yes | ElevenLabs API key ([elevenlabs.io](https://elevenlabs.io)) |
+| `ELEVENLABS_VOICE_ID` | yes | ID of the voice to use — deliberately configurable, not hard-coded (pick one in your ElevenLabs voice library) |
+| `ELEVENLABS_MODEL_ID` | no | TTS model (defaults to `eleven_multilingual_v2`) |
+
 ## Public website
 
 The public knowledge base is a fully static **Astro + Starlight** website deployed to **GitHub Pages** by GitHub Actions on every merge to the production branch — no runtime application server, no dedicated hosting. It provides a homepage, category and article navigation, tags, full-text search and a responsive documentation layout.
@@ -355,6 +399,10 @@ shared-knowledge-mcp/
 ├── Shared Knowledge MCP.md    # Functional & technical specification
 ├── pyproject.toml             # Packaging & dependencies (Python 3.10+)
 ├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation)
+├── scripts/
+│   └── generate_audio.py      # ElevenLabs TTS for merged articles (CI)
+├── .github/workflows/
+│   └── audio.yml              # Audio generation after merge (human review first)
 ├── knowledge/                 # Markdown knowledge base (YAML frontmatter)
 │   ├── ai/
 │   ├── backend/

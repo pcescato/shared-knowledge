@@ -1,0 +1,99 @@
+# Audio generation for merged knowledge articles (ElevenLabs).
+#
+# Architectural rule: audio is generated AFTER human review. The sequence is
+#   MCP -> Markdown article -> Pull Request -> Human review -> Merge
+#        -> this workflow -> ElevenLabs -> audio artifact
+# Audio is never generated when publish_knowledge() opens the Pull Request,
+# and the validated Markdown article is the sole source for the speech text.
+#
+# The generated .mp3 files and .audio_manifest.json are committed back to the
+# default branch, so the static documentation site ships the audio without
+# any runtime dependency on ElevenLabs.
+#
+# Required secrets (never committed):
+#   ELEVENLABS_API_KEY   - ElevenLabs API key
+#   ELEVENLABS_VOICE_ID  - voice to use (configurable, not hard-coded)
+# Optional secret:
+#   ELEVENLABS_MODEL_ID  - TTS model (default: eleven_multilingual_v2)
+
+name: Generate article audio
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'knowledge/**'
+      - 'scripts/generate_audio.py'
+      - '.github/workflows/audio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audio-generation
+  cancel-in-progress: false
+
+jobs:
+  generate-audio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Full history so the manifest and previous audio are seen; the
+          # script itself stays idempotent through .audio_manifest.json.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Determine articles changed since the previous successful run
+        id: changed
+        run: |
+          PREV_SHA="$(git log -1 --format=%H -- .audio_manifest.json site/public/audio || true)"
+          if [ -n "$PREV_SHA" ]; then
+            echo "from=$PREV_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate audio for new or changed articles
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+        run: |
+          ARGS=""
+          if [ -n "${{ steps.changed.outputs.from }}" ]; then
+            ARGS="--changed-from ${{ steps.changed.outputs.from }}"
+          fi
+          python scripts/generate_audio.py $ARGS
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain -- site/public/audio .audio_manifest.json)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit audio artifacts
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/public/audio .audio_manifest.json
+          git commit -m "Generate audio for merged knowledge articles"
+          git push
+
+      - name: Report failures
+        if: failure()
+        run: |
+          echo "::error::ElevenLabs audio generation failed for one or more articles." \
+               "The Markdown knowledge base is valid and unchanged," \
+               "and no audio was published for the failed articles." \
+               "Inspect the job log for the [FAIL] lines."
