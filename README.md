@@ -87,7 +87,7 @@ The project has three logical components:
 10. GitHub Actions builds the site → Astro/Starlight → GitHub Pages
 ```
 
-**AI structures; humans decide.** Only merged contributions become publicly available.
+**AI structures; humans decide.** Only merged contributions become publicly available. The published article is also the source of truth for its audio version — audio is generated from the validated Markdown after human review, never before.
 
 ## MCP tools
 
@@ -395,7 +395,9 @@ knowledge/<category>/<slug>.md  →  /<category>/<slug>/
                                 →  /audio/<category>/<slug>.mp3   (when audio exists)
 ```
 
-Deployment targets **GitHub Pages** as a project page (`https://pcescato.github.io/shared-knowledge/`); the Astro `base` is already configured for it. Deploying is a standard Pages workflow: build `site/` and publish `site/dist/`.
+Deployment targets **GitHub Pages** as a project page (`https://pcescato.github.io/shared-knowledge/`); the Astro `base` is already configured for it. The [`deploy.yml`](.github/workflows/deploy.yml) workflow builds `site/` (articles + audio included), verifies every knowledge article has a built page, and publishes `site/dist/` to Pages. It runs only on changes that are already on the default branch — i.e. after human review.
+
+> **The published article is the source of truth for its audio version.** Audio is regenerated only when the merged article changes, never ahead of review.
 
 ### Local development
 
@@ -442,7 +444,7 @@ shared-knowledge-mcp/
 │   └── public/audio/          # ElevenLabs artifacts (generated, committed)
 ├── .github/workflows/
 │   ├── audio.yml              # Audio generation after merge (human review first)
-│   └── deploy.yml             # Pages deployment (to be added with the site launch)
+│   └── deploy.yml             # Build site/ and publish to GitHub Pages
 ├── README.md
 └── LICENSE
 ```
