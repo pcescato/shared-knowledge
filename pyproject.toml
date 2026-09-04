@@ -29,6 +29,11 @@ dependencies = [
     "python-frontmatter>=1.1,<2",
 ]
 
+[project.optional-dependencies]
+# LLM provider: publish_knowledge needs this extra (kept optional so the
+# search/get tools work without it).
+gemini = ["google-genai>=1,<2"]
+
 [dependency-groups]
 dev = [
     "pytest>=8",

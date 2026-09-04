@@ -170,6 +170,12 @@ cd shared-knowledge
 pip install -e . --group dev
 ```
 
+To use `publish_knowledge`, also install the LLM provider extra:
+
+```bash
+pip install -e '.[gemini]' --group dev
+```
+
 > Using `pip` < 25.1 or another tool? The equivalent is `pip install -e . && pip install pytest` (or `uv sync --dev` with [uv](https://docs.astral.sh/uv/)).
 
 A small seed knowledge base already lives in [`knowledge/`](knowledge/) so `search_knowledge` / `get_knowledge` work out of the box.
@@ -226,8 +232,12 @@ AI:    (calls publish_knowledge with the relevant conversation excerpt)
 | Environment variable | Default | Description |
 |---|---|---|
 | `KNOWLEDGE_DIR` | `./knowledge` | Root folder of the local Markdown knowledge base used by `search_knowledge` / `get_knowledge` |
-| *(LLM credentials)* | — | API key for the Gemini (Google AI) call used by `_generate_article` |
-| *(GitHub credentials)* | — | Token used by `_create_pull_request`; must be stored **outside** the repository and scoped to the minimum permissions needed to create branches, commits and Pull Requests |
+| `GEMINI_API_KEY` | — | **Required for `publish_knowledge`.** API key for the Gemini (Google AI) call used to generate the article. Get one in [Google AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for article generation |
+| `LLM_PROVIDER` | `gemini` | LLM provider selection. The provider implementation is isolated in [`llm.py`](llm.py); add a provider there to swap Gemini without touching the MCP tools |
+| *(GitHub credentials)* | — | Token used by `_create_pull_request` (not implemented yet); must be stored **outside** the repository and scoped to the minimum permissions needed to create branches, commits and Pull Requests |
+
+No credentials are hard-coded: everything is read from environment variables. The article is requested as **structured JSON** constrained by a Pydantic schema (`ArticleDraft` in `llm.py`) — the LLM can never pick an arbitrary category (the list is enforced in the prompt and re-validated against `CATEGORIES` afterwards), and any API or malformed-response failure surfaces as a clean `error` from `publish_knowledge` rather than a fabricated article.
 
 GitHub authentication credentials used by the MCP must never be committed to the repository.
 
@@ -329,6 +339,7 @@ The public knowledge base is a fully static **Astro + Starlight** website deploy
 ```text
 shared-knowledge-mcp/
 ├── server.py                  # MCP server (search / get / publish tools)
+├── llm.py                     # Isolated LLM provider (Gemini, structured output)
 ├── Shared Knowledge MCP.md    # Functional & technical specification
 ├── pyproject.toml             # Packaging & dependencies (Python 3.10+)
 ├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation)
@@ -376,7 +387,7 @@ You can also open a Pull Request manually: add a Markdown article under `knowled
 ### As a code contributor
 
 1. Fork the repository and create a feature branch;
-2. Make your changes (the two remaining TODOs in `server.py` — `_generate_article` and `_create_pull_request` — are a great place to start);
+2. Make your changes (the remaining TODO in `server.py` — `_create_pull_request` — is a great place to start);
 3. Run the test suite: `pytest`;
 4. Test the server locally with `mcp dev server.py`;
 5. Open a Pull Request.

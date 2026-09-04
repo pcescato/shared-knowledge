@@ -12,9 +12,10 @@ search_knowledge and get_knowledge already work against a local
 for the demo; swap the naive grep for the public GitHub repo once it
 exists). search_knowledge ranks matches with a simple deterministic
 field-weighting scheme - see FIELD_WEIGHTS below - no embeddings, no
-vector database, no external service. publish_knowledge is fully wired
-except for the two external calls left as TODOs: the LLM call (Gemini /
-Google AI) and the GitHub API call to open the Pull Request.
+vector database, no external service. publish_knowledge generates the
+article through the isolated LLM provider in llm.py (Gemini by default,
+see that module) - the GitHub API call to open the Pull Request is the
+remaining TODO.
 
 get_knowledge resolves `id` inside KNOWLEDGE_DIR and refuses anything
 that escapes it (path traversal) or that does not exist - it returns a
@@ -34,6 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 import frontmatter
+from llm import ProviderError, generate_article
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
@@ -240,7 +242,8 @@ def publish_knowledge(input: PublishInput) -> PublishOutput:
     """
     try:
         article = _generate_article(input.conversation_excerpt, input.language_hint)
-    except NotImplementedError as exc:
+    except ProviderError as exc:
+        # Missing key, API failure, malformed/invalid structured output...
         return PublishOutput(status="error", error=str(exc))
     except Exception as exc:  # noqa: BLE001 - surface any generation failure to the caller
         return PublishOutput(status="error", error=f"generation failed: {exc}")
@@ -326,13 +329,15 @@ def _searchable_fields(post: frontmatter.Post) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------
-# External calls - fill these in during the Saturday-night session.
+# External calls - the LLM side is done (llm.py); the GitHub API call to
+# open the Pull Request is the remaining piece.
 # --------------------------------------------------------------------------
 
 def _generate_article(excerpt: str, language_hint: Optional[str]) -> dict:
-    """Call Gemini (Google AI) to turn the excerpt into a structured article.
+    """Turn the excerpt into a structured article via the isolated LLM provider.
 
-    Must return:
+    Delegates to llm.generate_article (Gemini by default, selected through
+    LLM_PROVIDER). Must return:
         {
           "title": str,
           "description": str,
@@ -341,11 +346,14 @@ def _generate_article(excerpt: str, language_hint: Optional[str]) -> dict:
           "content": str,    # full Markdown body, sections per spec 7.3
         }
 
-    Prompt should enforce: English output, standalone (no "as I said
-    above", no references to the user or the conversation), category
-    chosen from CATEGORIES only, tags lowercase and reused where possible.
+    The prompt enforces: English output, standalone article (no "as I said
+    above", no references to the user or the conversation), category chosen
+    from CATEGORIES only (re-validated afterwards), tags lowercase and
+    reusable. Raises llm.ProviderError on configuration, API, or response
+    errors - publish_knowledge maps that to a clean MCP-level error and
+    never fabricates an article.
     """
-    raise NotImplementedError("TODO: wire the Gemini API call here")
+    return generate_article(excerpt, language_hint, CATEGORIES)
 
 
 def _create_pull_request(article: dict) -> str:
