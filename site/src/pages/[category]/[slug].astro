@@ -1,0 +1,80 @@
+---
+// Article pages: /<category-dir>/<slug>/ - one static page per knowledge article.
+import { getCollection, render } from 'astro:content';
+import { promises as fs } from 'node:fs';
+import BaseHead from '../../components/BaseHead.astro';
+import KBHeader from '../../components/KBHeader.astro';
+import AudioPlayer from '../../components/AudioPlayer.astro';
+import { categoryDir, withBase } from '../../lib/knowledge.js';
+
+export async function getStaticPaths() {
+  const articles = await getCollection('knowledge');
+  return articles.map((article) => {
+    const [categoryDir, slug] = article.id.split('/');
+    return {
+      params: { category: categoryDir, slug },
+      props: { article },
+    };
+  });
+}
+
+const article = Astro.props.article;
+const { category } = article.data;
+const categoryPath = categoryDir(category);
+const slug = article.id.split('/')[1];
+
+// Audio exists only if the ElevenLabs workflow (or a local run of
+// scripts/generate_audio.py) has produced the file for this article.
+const audioFile = new URL(`../../../public/audio/${categoryPath}/${slug}.mp3`, import.meta.url);
+let hasAudio = false;
+try {
+  await fs.access(audioFile);
+  hasAudio = true;
+} catch {
+  hasAudio = false;
+}
+
+const { Content } = await render(article);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead
+      title={article.data.title}
+      description={article.data.description}
+    />
+  </head>
+  <body>
+    <KBHeader />
+    <main class="kb-page">
+      <nav class="kb-breadcrumb" aria-label="Breadcrumb">
+        <a href={withBase('')} style="color:inherit">Knowledge base</a>
+        <span aria-hidden="true"> / </span>
+        <a href={withBase(`${categoryPath}/`)} style="color:inherit">{category}</a>
+      </nav>
+
+      <p class="kb-meta">
+        {category} · published {article.data.created_at} ·
+        {article.data.tags.map((tag) => <a class="kb-tag" href={withBase(`tags/${tag}`)}>#{tag}</a>)}
+      </p>
+
+      {
+        hasAudio && (
+          <AudioPlayer
+            src={withBase(`audio/${categoryPath}/${slug}.mp3`)}
+            title={article.data.title}
+          />
+        )
+      }
+
+      <!--
+        The article body starts with its own "# Title" heading (spec 7.3),
+        which is the page's h1 - so no page-level h1 is rendered here.
+      -->
+      <article class="kb-article sl-markdown-content">
+        <Content />
+      </article>
+    </main>
+  </body>
+</html>

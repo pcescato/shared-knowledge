@@ -1,0 +1,37 @@
+---
+// "Listen to this article" - a deliberately simple player.
+// Rendered only when a generated audio file exists for the article; when it
+// doesn't, this component renders nothing and the article stays fully usable
+// as text. The native <audio> element keeps controls accessible by default.
+interface Props {
+  src: string; // site-absolute path to the mp3, e.g. /audio/devops/my-slug.mp3
+  title: string; // article title, for the accessible label
+}
+const { src, title } = Astro.props;
+---
+
+<section class="kb-audio" aria-label="Audio version of this article">
+  <p class="kb-audio-label">Listen to this article</p>
+  <!-- The native player provides keyboard operability, screen-reader labels,
+       and speed controls without any custom interface code. -->
+  <audio controls preload="none" src={src} aria-label={`Audio version of ${title}`}></audio>
+</section>
+
+<style>
+  .kb-audio {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0 1.5rem;
+    background: var(--sl-color-gray-6, var(--sl-color-gray-7));
+  }
+  .kb-audio-label {
+    margin: 0 0 0.25rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  .kb-audio audio {
+    width: 100%;
+    height: 2.25rem;
+  }
+</style>

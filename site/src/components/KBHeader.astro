@@ -1,0 +1,17 @@
+---
+// Header for standalone pages (categories, tags): restrained, link-first.
+import { withBase } from '../lib/knowledge.js';
+
+const links = [
+  { href: '', label: 'Home' },
+  { href: 'articles/', label: 'All articles' },
+  { href: 'tags/', label: 'Tags' },
+];
+---
+
+<header class="kb-header">
+  <a class="kb-site-title" href={withBase('')}>Shared Knowledge</a>
+  <nav aria-label="Main">
+    {links.map((link) => <a href={withBase(link.href)}>{link.label}</a>)}
+  </nav>
+</header>

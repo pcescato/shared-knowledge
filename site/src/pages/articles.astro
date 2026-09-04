@@ -1,0 +1,49 @@
+---
+// All-articles index, rendered with Starlight's page layout.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { categoryDir, withBase } from '../lib/knowledge.js';
+
+const articles = (await getCollection('knowledge')).sort(function (a, b) {
+  return (a.data.category + a.id).localeCompare(b.data.category + b.id);
+});
+
+const frontmatter = {
+  title: 'All articles',
+  description: 'Every article in the shared knowledge base, grouped by category.',
+};
+---
+
+<StarlightPage frontmatter={frontmatter}>
+  <div class="kb-page">
+    <p>Every article in the knowledge base. The <a href={withBase('tags/')}>tags index</a> offers another way in.</p>
+    {
+      articles.length === 0 && (
+        <p>
+          No articles have been merged into the knowledge base yet. Contributions
+          are submitted as Pull Requests and appear here after human review.
+        </p>
+      )
+    }
+    <ul class="kb-list">
+      {articles.map(function (article) {
+        const slug = article.id.split('/')[1];
+        const href = withBase(categoryDir(article.data.category) + '/' + slug);
+        const tagLine = article.data.tags
+          .map(function (t) {
+            return '#' + t;
+          })
+          .join(' ');
+        return (
+          <li>
+            <a href={href}>{article.data.title}</a>
+            <span class="kb-meta">
+              {article.data.category} · {article.data.created_at}
+              {article.data.tags.length > 0 ? ' · ' + tagLine : ''}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</StarlightPage>

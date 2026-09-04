@@ -1,0 +1,55 @@
+---
+// One page per tag: /tags/<tag>/
+import { getCollection } from 'astro:content';
+import BaseHead from '../../components/BaseHead.astro';
+import KBHeader from '../../components/KBHeader.astro';
+import { categoryDir, withBase } from '../../lib/knowledge.js';
+
+export async function getStaticPaths() {
+  const articles = await getCollection('knowledge');
+  const tags = new Map();
+  for (const article of articles) {
+    for (const tag of article.data.tags) {
+      if (!tags.has(tag)) tags.set(tag, []);
+      tags.get(tag).push(article);
+    }
+  }
+  return [...tags.entries()].map(([tag]) => ({
+    params: { tag },
+    props: { tag, articles: tags.get(tag) },
+  }));
+}
+
+const { tag } = Astro.props;
+const articles = Astro.props.articles.sort((a, b) =>
+  a.data.title.localeCompare(b.data.title),
+);
+const title = `#${tag}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={title} description={`Articles tagged #${tag} in the shared knowledge base.`} />
+  </head>
+  <body>
+    <KBHeader />
+    <main class="kb-page">
+      <h1>{title}</h1>
+      <p class="kb-meta">{articles.length} article{articles.length === 1 ? '' : 's'} with this tag.</p>
+      <ul class="kb-list">
+        {articles.map((article) => (
+          <li>
+            <a href={withBase(`${categoryDir(article.data.category)}/${article.id.split('/')[1]}`)}>
+              {article.data.title}
+            </a>
+            <span class="kb-meta">
+              {article.data.category} · {article.data.created_at}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p><a href={withBase('tags/')}>← All tags</a></p>
+    </main>
+  </body>
+</html>

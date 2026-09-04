@@ -1,0 +1,17 @@
+---
+// Minimal <head> for the standalone Astro pages (categories, tags).
+// Starlight-managed pages (homepage, article pages) get their head from
+// Starlight itself.
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+<title>{title} · Shared Knowledge</title>
+<meta name="description" content={description} />
+<link rel="stylesheet" href="/kb-standalone.css" />

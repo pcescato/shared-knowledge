@@ -1,0 +1,95 @@
+/* Standalone pages (categories, tags): restrained documentation styling that
+   works in light and dark mode via prefers-color-scheme. */
+
+:root {
+  --kb-accent: #2563eb;
+  --kb-text: #1f2937;
+  --kb-muted: #6b7280;
+  --kb-border: #e5e7eb;
+  --kb-bg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kb-accent: #60a5fa;
+    --kb-text: #e5e7eb;
+    --kb-muted: #9ca3af;
+    --kb-border: #374151;
+    --kb-bg: #111827;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--kb-text);
+  background: var(--kb-bg);
+  line-height: 1.6;
+}
+.kb-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--kb-border);
+}
+.kb-site-title {
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--kb-text);
+}
+.kb-header nav {
+  display: flex;
+  gap: 1rem;
+}
+.kb-header a {
+  color: var(--kb-muted);
+  text-decoration: none;
+}
+.kb-header a:hover,
+.kb-list a:hover {
+  color: var(--kb-accent);
+}
+.kb-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+.kb-breadcrumb {
+  font-size: 0.875rem;
+  color: var(--kb-muted);
+  margin-bottom: 1rem;
+}
+.kb-breadcrumb a {
+  color: var(--kb-muted);
+}
+.kb-list {
+  list-style: none;
+  padding: 0;
+}
+.kb-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--kb-border);
+}
+.kb-list a {
+  font-weight: 600;
+  text-decoration: none;
+}
+.kb-meta {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--kb-muted);
+}
+.kb-tag {
+  color: var(--kb-accent);
+  text-decoration: none;
+  margin-right: 0.35rem;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}

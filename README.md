@@ -49,7 +49,6 @@ Available to the next user
 - [Moderation & privacy](#moderation--privacy)
 - [Audio versions (ElevenLabs)](#audio-versions-elevenlabs)
 - [Public website](#public-website)
-- [Repository structure](#repository-structure)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -387,7 +386,26 @@ Configure these as **repository secrets** (Settings → Secrets and variables �
 
 ## Public website
 
-The public knowledge base is a fully static **Astro + Starlight** website deployed to **GitHub Pages** by GitHub Actions on every merge to the production branch — no runtime application server, no dedicated hosting. It provides a homepage, category and article navigation, tags, full-text search and a responsive documentation layout.
+The public knowledge base lives in [`site/`](site/) and is built with **Astro + Starlight** as a fully static website — no runtime application server, no database. It provides a homepage, category navigation, an all-articles index, tags, built-in full-text search (Pagefind), a responsive documentation layout and article pages with an optional *Listen to this article* audio player.
+
+The Markdown knowledge repository remains the **source of truth**: the site reads `knowledge/**/*.md` directly through a content collection — no article content is duplicated inside the website. URLs are stable and human-readable:
+
+```text
+knowledge/<category>/<slug>.md  →  /<category>/<slug>/
+                                →  /audio/<category>/<slug>.mp3   (when audio exists)
+```
+
+Deployment targets **GitHub Pages** as a project page (`https://pcescato.github.io/shared-knowledge/`); the Astro `base` is already configured for it. Deploying is a standard Pages workflow: build `site/` and publish `site/dist/`.
+
+### Local development
+
+```bash
+cd site
+npm install
+npm run dev       # dev server with hot reload
+npm run build     # static build to site/dist/
+npm run preview   # preview the production build locally
+```
 
 ## Repository structure
 
@@ -417,8 +435,14 @@ shared-knowledge-mcp/
 │   ├── security/
 │   ├── tools/
 │   └── web-development/
-├── site/                      # Astro + Starlight documentation website
-├── .github/workflows/         # deploy.yml — build & publish to GitHub Pages
+├── site/                      # Astro + Starlight public knowledge base
+│   ├── astro.config.mjs       # Starlight config (base path, sidebar, Pagefind)
+│   ├── src/pages/             # Homepage, category/tag/article pages
+│   ├── src/lib/knowledge.js   # URL/audio contract helpers (mirrors slugify)
+│   └── public/audio/          # ElevenLabs artifacts (generated, committed)
+├── .github/workflows/
+│   ├── audio.yml              # Audio generation after merge (human review first)
+│   └── deploy.yml             # Pages deployment (to be added with the site launch)
 ├── README.md
 └── LICENSE
 ```

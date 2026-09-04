@@ -1,0 +1,57 @@
+---
+// Tags index, rendered with Starlight's page layout.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { withBase } from '../lib/knowledge.js';
+
+const allArticles = await getCollection('knowledge');
+const tagEntries = [];
+for (const article of allArticles) {
+  for (const tag of article.data.tags) {
+    let entry = null;
+    for (const candidate of tagEntries) {
+      if (candidate.tag === tag) entry = candidate;
+    }
+    if (entry) {
+      entry.articles.push(article);
+    } else {
+      tagEntries.push({ tag: tag, articles: [article] });
+    }
+  }
+}
+tagEntries.sort(function (a, b) {
+  return a.tag.localeCompare(b.tag);
+});
+
+const frontmatter = {
+  title: 'Tags',
+  description: 'All tags used across the shared knowledge base.',
+};
+---
+
+<StarlightPage frontmatter={frontmatter}>
+  <div class="kb-page">
+    <p>
+      Every generated tag across the knowledge base. Tags are assigned
+      automatically when articles are merged, from a deliberately reusable set.
+    </p>
+    {
+      tagEntries.length === 0 && (
+        <p>No tags yet — tags are generated when articles are merged.</p>
+      )
+    }
+    <ul class="kb-list">
+      {tagEntries.map(function (entry) {
+        const count = entry.articles.length;
+        return (
+          <li>
+            <a href={withBase('tags/' + entry.tag)}>#{entry.tag}</a>
+            <span class="kb-meta">
+              {count} article{count === 1 ? '' : 's'}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</StarlightPage>

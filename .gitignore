@@ -13,6 +13,11 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# Site build output & dependencies (knowledge/ stays the source of truth)
+site/node_modules/
+site/dist/
+site/.astro/
+
 # OS / editors
 .DS_Store
 Thumbs.db
