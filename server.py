@@ -10,9 +10,11 @@ Exposes three tools, matching the spec's section 6 (MCP Interface):
 search_knowledge and get_knowledge already work against a local
 `knowledge/` folder of Markdown files with YAML frontmatter (good enough
 for the demo; swap the naive grep for the public GitHub repo once it
-exists). publish_knowledge is fully wired except for the two external
-calls left as TODOs: the LLM call (Gemini / Google AI) and the GitHub
-API call to open the Pull Request.
+exists). search_knowledge ranks matches with a simple deterministic
+field-weighting scheme - see FIELD_WEIGHTS below - no embeddings, no
+vector database, no external service. publish_knowledge is fully wired
+except for the two external calls left as TODOs: the LLM call (Gemini /
+Google AI) and the GitHub API call to open the Pull Request.
 
 get_knowledge resolves `id` inside KNOWLEDGE_DIR and refuses anything
 that escapes it (path traversal) or that does not exist - it returns a
@@ -36,6 +38,35 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 mcp = FastMCP("shared-knowledge")
+
+# Search result cap. Applied AFTER relevance ranking (spec: results are
+# sorted by relevance first, then truncated).
+MAX_SEARCH_RESULTS = 10
+
+# Lightweight relevance weights for search_knowledge (deterministic,
+# dependency-light ranking - no embeddings, no vector database).
+#
+# Each query term contributes, at most once per article:
+#   weight  where it matched
+#   ------  ---------------------------------
+#   8.0     title (frontmatter)
+#   6.0     tags (frontmatter list)
+#   4.0     description (frontmatter)
+#   2.0     category (frontmatter)
+#   1.0     body (Markdown content)
+#
+# A term matching in several fields adds each field's weight once (e.g. a
+# term in title AND body scores 9.0), so multi-field matches outrank
+# single-field matches and multi-term queries outrank single-term ones.
+# Scores are only compared against each other; the absolute values carry
+# no meaning outside this module.
+FIELD_WEIGHTS = {
+    "title": 8.0,
+    "tags": 6.0,
+    "description": 4.0,
+    "category": 2.0,
+    "body": 1.0,
+}
 
 # Controlled vocabulary - spec section 8. Categories are not user-defined.
 CATEGORIES = [
@@ -94,30 +125,43 @@ class SearchOutput(BaseModel):
 def search_knowledge(query: str) -> SearchOutput:
     """Search the shared knowledge base for articles relevant to `query`.
 
-    MVP implementation: naive keyword match over local Markdown files
-    (frontmatter title/description/category + body). No vector database
-    needed for the MVP, per spec section 7 goals.
+    MVP implementation: dependency-light keyword search over local Markdown
+    files (frontmatter title/tags/description/category + body), ranked by a
+    deterministic field-weighting scheme (see FIELD_WEIGHTS). Results are
+    sorted by relevance (highest first, ties broken by title) before the
+    MAX_SEARCH_RESULTS limit is applied. No vector database, per spec
+    section 7 goals.
     """
-    terms = [t.lower() for t in query.split() if t]
-    results: list[SearchResult] = []
+    terms = _tokenize(query)
+    if not terms:
+        return SearchOutput(results=[])
+
+    scored: list[tuple[float, str, SearchResult]] = []
 
     for path in glob.glob(os.path.join(KNOWLEDGE_DIR, "**", "*.md"), recursive=True):
         post = frontmatter.load(path)
-        if terms and not any(
-            term in post.content.lower() or term in _meta_text(post.metadata).lower()
-            for term in terms
-        ):
-            continue
-        results.append(
-            SearchResult(
-                title=post.get("title", os.path.basename(path)),
-                category=post.get("category", "Other"),
-                url=path,
-                summary=post.get("description", ""),
+        fields = _searchable_fields(post)
+        score = 0.0
+        matched = False
+        for term in terms:
+            for field, text in fields.items():
+                if term in text:
+                    score += FIELD_WEIGHTS[field]
+                    matched = True
+        if matched:
+            scored.append(
+                (score, str(post.get("title", "")).lower(),
+                 SearchResult(
+                     title=post.get("title", os.path.basename(path)),
+                     category=post.get("category", "Other"),
+                     url=path,
+                     summary=post.get("description", ""),
+                 ))
             )
-        )
 
-    return SearchOutput(results=results[:10])
+    # Sort by relevance (desc), then title (asc) for deterministic ties.
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return SearchOutput(results=[result for _, _, result in scored[:MAX_SEARCH_RESULTS]])
 
 
 # --------------------------------------------------------------------------
@@ -253,18 +297,32 @@ def _parse_frontmatter(content: str) -> dict:
     return frontmatter.loads(content).metadata
 
 
-def _meta_text(metadata: dict) -> str:
-    """Flatten frontmatter metadata to text for naive keyword matching."""
-    def _flatten(value) -> str:
-        if isinstance(value, dict):
-            return " ".join(
-                f"{k} {_flatten(v)}" for k, v in value.items() if isinstance(k, str)
-            )
-        if isinstance(value, (list, tuple)):
-            return " ".join(_flatten(v) for v in value)
-        return str(value)
+def _tokenize(query: str) -> list[str]:
+    """Split a query into lowercase search terms.
 
-    return _flatten(metadata)
+    Normalization: lowercase, split on whitespace AND punctuation (so
+    "caddy, authentik" or "reverse-proxy:" become separate terms), drop
+    short English stop words that would otherwise match almost every
+    article. Repeated terms are kept - they slightly boost multi-field
+    emphasis but never break determinism.
+    """
+    stop_words = {"the", "a", "an", "of", "to", "for", "and", "or", "in", "on", "with", "is"}
+    tokens = re.split(r"[^\w\-]+", query.lower())
+    return [t for t in tokens if len(t) >= 2 and t not in stop_words]
+
+
+def _searchable_fields(post: frontmatter.Post) -> dict[str, str]:
+    """Extract the text of each weighted field from a frontmatter post."""
+    tags = post.get("tags") or []
+    if not isinstance(tags, (list, tuple)):
+        tags = [tags]
+    return {
+        "title": str(post.get("title", "")).lower(),
+        "tags": " ".join(str(t) for t in tags).lower(),
+        "description": str(post.get("description", "")).lower(),
+        "category": str(post.get("category", "")).lower(),
+        "body": post.content.lower(),
+    }
 
 
 # --------------------------------------------------------------------------

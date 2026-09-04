@@ -83,6 +83,51 @@ class TestSearchKnowledge:
 
 
 # ---------------------------------------------------------------------------
+# search_knowledge relevance ranking
+# ---------------------------------------------------------------------------
+
+
+class TestSearchRanking:
+    def test_title_match_outranks_repeated_body_match(self, ranking_dir):
+        """One term in a title beats an article mentioning it many times in its body."""
+        output = server.search_knowledge("zookeeper")
+        assert output.results[0].title == "Zookeeper operations"
+        assert output.results[1].title == "Kafka basics"
+
+    def test_tag_match_finds_article(self, knowledge_dir):
+        """`sso` appears only in the tags of the Caddy/Authentik article."""
+        output = server.search_knowledge("sso")
+        assert [r.title for r in output.results] == [
+            "Protecting Streamlit with Caddy and Authentik"
+        ]
+
+    def test_tag_match_outranks_description_match(self, ranking_dir):
+        """Tag weight (6.0) > description weight (4.0) for the same term."""
+        output = server.search_knowledge("streamlit")
+        assert output.results[0].title == "Protecting Streamlit with Caddy and Authentik"
+
+    def test_multiple_matching_terms_outrank_single_term(self, ranking_dir):
+        """An article matching both query terms beats one matching only the first."""
+        output = server.search_knowledge("caddy authentik")
+        titles = [r.title for r in output.results]
+        assert titles.index("Caddy and Authentik") < titles.index("Caddy setup")
+
+    def test_no_results_for_unknown_term(self, knowledge_dir):
+        assert server.search_knowledge("quantumphotonic").results == []
+
+    def test_no_results_for_blank_or_stopword_query(self, knowledge_dir):
+        assert server.search_knowledge("").results == []
+        assert server.search_knowledge("the with for").results == []
+
+    def test_results_capped_at_maximum_after_ranking(self, ranking_dir):
+        """12 articles match; only MAX_SEARCH_RESULTS are returned, best first."""
+        output = server.search_knowledge("quixotic unicorns")
+        assert len(output.results) == server.MAX_SEARCH_RESULTS
+        titles = [r.title for r in output.results]
+        assert titles == sorted(titles)  # equal scores -> deterministic title order
+
+
+# ---------------------------------------------------------------------------
 # get_knowledge
 # ---------------------------------------------------------------------------
 

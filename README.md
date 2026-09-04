@@ -118,7 +118,7 @@ Search the shared knowledge base for articles relevant to a query.
 }
 ```
 
-MVP implementation: naive keyword match over the local `knowledge/` folder (frontmatter title/description/category + body). No vector database is required.
+Implementation: dependency-light keyword search over the local `knowledge/` folder (frontmatter title/tags/description/category + body), ranked by a deterministic field-weighting scheme — a query term scores 8 in the title, 6 in tags, 4 in the description, 2 in the category and 1 in the body, and scores accumulate per term and field. Results are sorted by relevance (highest first, ties broken by title) before the 10-result limit is applied. No embeddings, vector database or external service involved.
 
 ### `get_knowledge`
 

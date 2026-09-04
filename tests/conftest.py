@@ -23,6 +23,15 @@ def _write_article(path: Path, frontmatter: str, body: str) -> None:
     path.write_text(f"---\n{frontmatter}\n---\n\n{body}\n", encoding="utf-8")
 
 
+def _add_article(base: Path, slug: str, title: str, body: str, **meta: str) -> None:
+    """Write one article with simple string metadata (no tags)."""
+    _write_article(
+        base / f"{slug}.md",
+        f'title: "{title}"\n' + "".join(f'{k}: "{v}"\n' for k, v in meta.items()),
+        body,
+    )
+
+
 @pytest.fixture()
 def knowledge_dir(tmp_path, monkeypatch):
     """A temporary knowledge base with two articles, wired into server.KNOWLEDGE_DIR."""
@@ -63,6 +72,61 @@ def knowledge_dir(tmp_path, monkeypatch):
     importlib.reload(server)
     monkeypatch.setattr(server, "KNOWLEDGE_DIR", str(base))
     yield base
+
+
+@pytest.fixture()
+def ranking_dir(knowledge_dir):
+    """Knowledge base extended with articles crafted for ranking tests."""
+    _add_article(
+        knowledge_dir,
+        "linux/zookeeper-topic",
+        "Kafka basics",
+        "A long body discussing zookeeper in depth. " * 10,
+        description="Apache Kafka overview",
+        category="Backend",
+    )
+    _add_article(
+        knowledge_dir,
+        "backend/kafka-basics",
+        "Zookeeper operations",
+        "How to run zookeeper in production. " * 10,
+        description="Running zookeeper clusters",
+        category="Backend",
+    )
+    _add_article(
+        knowledge_dir,
+        "tools/tool-a",
+        "Tool A",
+        "Body about alpha widgets.",
+        description="Alpha tool",
+        category="Tools",
+    )
+    _add_article(
+        knowledge_dir,
+        "backend/caddy-and-authentik",
+        "Caddy and Authentik",
+        "Using caddy with authentik for single sign-on.",
+        description="Pairing caddy and authentik",
+        category="Backend",
+    )
+    _add_article(
+        knowledge_dir,
+        "linux/caddy-setup",
+        "Caddy setup",
+        "Installing caddy as a system service.",
+        description="Basic caddy install",
+        category="Linux",
+    )
+    for i in range(12):
+        _add_article(
+            knowledge_dir,
+            f"misc/filler-{i}",
+            f"Filler article {i}",
+            "Mention quixotic unicorns briefly.",
+            description="Filler",
+            category="Other",
+        )
+    return knowledge_dir
 
 
 @pytest.fixture()
