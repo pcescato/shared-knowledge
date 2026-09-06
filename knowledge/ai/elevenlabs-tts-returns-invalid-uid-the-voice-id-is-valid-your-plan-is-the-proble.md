@@ -16,8 +16,6 @@ title: 'ElevenLabs TTS returns invalid_uid: the voice_id is valid, your plan is 
   problem'
 ---
 
-# ElevenLabs TTS returns invalid_uid: the voice_id is valid, your plan is the problem
-
 ## Problem
 
 Calls to the ElevenLabs Text-to-Speech API fail systematically with HTTP 400 and this JSON body:
