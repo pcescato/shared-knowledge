@@ -55,7 +55,7 @@ except ImportError:
 MANIFEST_PATH = Path(".audio_manifest.json")
 AUDIO_ROOT = Path("site/public/audio")
 KNOWLEDGE_ROOT = Path("knowledge")
-ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/hpp4J3VqNfWAUOO0d1Us"
 DEFAULT_MODEL_ID = "eleven_multilingual_v2"
 
 
@@ -153,11 +153,12 @@ def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
     Args:
         text: Article text to synthesize
         api_key: ElevenLabs API key (secret)
-        voice_id: Voice ID (public identifier, configurable)
+        voice_id: Voice ID (public identifier, configurable) - currently hardcoded
         model_id: TTS model ID
     """
-    url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
-    print(f"[DEBUG] synthesize: voice_id={repr(voice_id)}, url={url}", file=sys.stderr)
+    url = ELEVENLABS_TTS_URL
+    print(f"[DEBUG] synthesize: voice_id param={repr(voice_id)}, url={url}", file=sys.stderr)
+    print(f"[DEBUG] text length: {len(text)}, text preview: {text[:50]}...", file=sys.stderr)
     
     body = {"text": text, "model_id": model_id}
     headers = {
@@ -166,8 +167,11 @@ def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
         "Accept": "audio/mpeg",
     }
     
+    print(f"[DEBUG] request body: {list(body.keys())}, headers: {list(headers.keys())}", file=sys.stderr)
+    
     try:
         response = requests.post(url, json=body, headers=headers, timeout=120)
+        print(f"[DEBUG] response status: {response.status_code}", file=sys.stderr)
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as exc:
