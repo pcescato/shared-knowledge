@@ -3,6 +3,7 @@
 # Architectural rule: audio is generated AFTER human review. The sequence is
 #   MCP -> Markdown article -> Pull Request -> Human review -> Merge
 #        -> this workflow -> ElevenLabs -> audio artifact
+#
 # Audio is never generated when publish_knowledge() opens the Pull Request,
 # and the validated Markdown article is the sole source for the speech text.
 #
@@ -11,15 +12,16 @@
 # any runtime dependency on ElevenLabs.
 #
 # Partial-failure guarantee: scripts/generate_audio.py isolates failures per
-# article, so if some articles fail while others succeed, the .mp3 files of
-# the successful articles are still committed (continue-on-error on the
-# generate step plus if: always() on the diff/commit steps); only then does
-# the job fail explicitly. Inspect the [FAIL] lines in the job log.
+# article, so if some articles fail while others succeed, the .mp3 files of the
+# successful articles are still committed (continue-on-error on the generate
+# step plus if: always() on the diff/commit steps); only then does the job fail
+# explicitly. Inspect the [FAIL] lines in the job log.
 #
 # Required secrets (never committed):
 #   ELEVENLABS_API_KEY   - ElevenLabs API key
 #   ELEVENLABS_VOICE_ID  - voice belonging to your own ElevenLabs account
 #                          ("My Voices", not the Voice Library)
+#
 # Optional secret:
 #   ELEVENLABS_MODEL_ID  - TTS model (default: eleven_multilingual_v2)
 
@@ -27,11 +29,13 @@ name: Generate article audio
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'knowledge/**'
       - 'scripts/generate_audio.py'
       - '.github/workflows/audio.yml'
+
   workflow_dispatch:
 
 permissions:
@@ -44,6 +48,7 @@ concurrency:
 jobs:
   generate-audio:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -55,10 +60,28 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Raw curl test from runner
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+        run: |
+          curl -sS \
+            -o /tmp/test.mp3 \
+            -w "HTTP %{http_code}\n" \
+            -X POST \
+            "https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}" \
+            -H "xi-api-key: ${ELEVENLABS_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"text":"ping","model_id":"eleven_multilingual_v2"}'
+
+          file /tmp/test.mp3 || true
+          head -c 300 /tmp/test.mp3
+
       - name: Determine articles changed since the previous successful run
         id: changed
         run: |
           PREV_SHA="$(git log -1 --format=%H -- .audio_manifest.json site/public/audio || true)"
+
           if [ -n "$PREV_SHA" ]; then
             echo "from=$PREV_SHA" >> "$GITHUB_OUTPUT"
           else
@@ -74,9 +97,11 @@ jobs:
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
         run: |
           ARGS=""
+
           if [ -n "${{ steps.changed.outputs.from }}" ]; then
             ARGS="--changed-from ${{ steps.changed.outputs.from }}"
           fi
+
           python scripts/generate_audio.py $ARGS
 
       - name: Detect changes
@@ -93,8 +118,10 @@ jobs:
         if: always() && steps.diff.outputs.changed == 'true'
         run: |
           mkdir -p site/public/audio
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add site/public/audio .audio_manifest.json
           git commit -m "Generate audio for merged knowledge articles"
           git push
@@ -102,8 +129,5 @@ jobs:
       - name: Fail job on partial generation failure
         if: always() && steps.generate.outcome == 'failure'
         run: |
-          echo "::error::Audio generation failed for one or more articles." \
-               "The .mp3 files generated for the successful articles have still" \
-               "been committed; the Markdown knowledge base is valid and unchanged." \
-               "Inspect the [FAIL] lines in the job log."
+          echo "::error::Audio generation failed for one or more articles. The .mp3 files generated for the successful articles have still been committed; the Markdown knowledge base is valid and unchanged. Inspect the [FAIL] lines in the job log."
           exit 1
