@@ -66,6 +66,23 @@ jobs:
             echo "from=" >> "$GITHUB_OUTPUT"
           fi
 
+      # TEMPORARY DIAGNOSTIC - remove once the voice_id mismatch is settled.
+      # Prints only lengths and truncated SHA-256 fingerprints, never values,
+      # so the CI secret values can be compared with the local ones.
+      - name: Fingerprint ElevenLabs secrets (temporary diagnostic)
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+        run: |
+          python3 - <<'EOF'
+          import hashlib, os
+          for name in ("ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL_ID"):
+              value = os.environ.get(name) or ""
+              fingerprint = hashlib.sha256(value.encode()).hexdigest()[:12] if value else "-"
+              print(f"secret {name}: len={len(value)} sha256[:12]={fingerprint}")
+          EOF
+
       # generate_audio.py exits non-zero if ANY article failed, even when the
       # others succeeded. continue-on-error keeps the successful audio in the
       # workspace; steps.generate.outcome preserves the failure so the last
