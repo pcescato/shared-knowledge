@@ -18,9 +18,12 @@
 #
 # Required secrets (never committed):
 #   ELEVENLABS_API_KEY   - ElevenLabs API key
-#   ELEVENLABS_VOICE_ID  - voice to use (configurable, not hard-coded)
-# Optional secret:
+# Optional:
+#   ELEVENLABS_VOICE_ID  - voice to use (configurable, not hard-coded; public, not secret)
 #   ELEVENLABS_MODEL_ID  - TTS model (default: eleven_multilingual_v2)
+
+# Public configuration (no masking):
+#   EL_VOICE_ID=hpp4J3VqNfWAUOO0d1Us (Aria voice, multilingual)
 
 name: Generate article audio
 
@@ -77,17 +80,18 @@ jobs:
       - name: Fingerprint ElevenLabs secrets (temporary diagnostic)
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_VOICE_ID_TEST: ${{ secrets.ELEVENLABS_VOICE_ID_TEST }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
         run: |
           python3 - <<'EOF'
           import hashlib, os
-          for name in ("ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_VOICE_ID_TEST", "ELEVENLABS_MODEL_ID"):
+          for name in ("ELEVENLABS_API_KEY", "ELEVENLABS_MODEL_ID"):
               value = os.environ.get(name) or ""
               fingerprint = hashlib.sha256(value.encode()).hexdigest()[:12] if value else "-"
               print(f"secret {name}: len={len(value)} sha256[:12]={fingerprint}")
+          echo "public EL_VOICE_ID: len=${#EL_VOICE_ID}"
           EOF
+        env:
+          EL_VOICE_ID: 'hpp4J3VqNfWAUOO0d1Us'
 
       # generate_audio.py exits non-zero if ANY article failed, even when the
       # others succeeded. continue-on-error keeps the successful audio in the
@@ -98,25 +102,14 @@ jobs:
         continue-on-error: true
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_VOICE_ID_TEST: ${{ secrets.ELEVENLABS_VOICE_ID_TEST }}
+          ELEVENLABS_VOICE_ID: 'hpp4J3VqNfWAUOO0d1Us'
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
         run: |
-          # Work around GitHub Actions secret masking: write voice_id to a temp file
-          # so it won't be masked in subprocess arguments/env
-          mkdir -p /tmp/el
-          echo -n "$ELEVENLABS_VOICE_ID" > /tmp/el/voice_id.txt
-          export ELEVENLABS_VOICE_ID_FILE=/tmp/el/voice_id.txt
-          unset ELEVENLABS_VOICE_ID
-          
           ARGS=""
           if [ -n "${{ steps.changed.outputs.from }}" ]; then
             ARGS="--changed-from ${{ steps.changed.outputs.from }}"
           fi
           python scripts/generate_audio.py $ARGS
-          
-          # Cleanup
-          rm -f /tmp/el/voice_id.txt
 
       - name: Detect changes
         id: diff

@@ -148,24 +148,21 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
 # ---------------------------------------------------------------------------
         
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
-    # NOTE: Working around GitHub Actions secret masking issue where the voice_id
-    # is masked even inside HTTP requests. We reverse it before using, then reverse again.
-    # This prevents GitHub's secret scanner from recognizing the pattern.
-    voice_id_obfuscated = voice_id[::-1]  # Reverse
-    voice_id_unobfuscated = voice_id_obfuscated[::-1]  # Un-reverse
+    """Generate audio via ElevenLabs API.
     
-    url = ELEVENLABS_TTS_URL.format(voice_id=voice_id_unobfuscated)
-    voice_id_preview = f"{voice_id[:3]}...{voice_id[-3:]}" if len(voice_id) > 6 else voice_id
-    api_key_preview = f"{api_key[:6]}...{api_key[-6:]}" if len(api_key) > 12 else "?"
-    print(f"[DEBUG] synthesize: voice_id_preview={voice_id_preview}, api_key_preview={api_key_preview}, url_len={len(url)}", file=sys.stderr)
-    
+    Args:
+        text: Article text to synthesize
+        api_key: ElevenLabs API key (secret)
+        voice_id: Voice ID (public identifier, configurable)
+        model_id: TTS model ID
+    """
+    url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
     body = {"text": text, "model_id": model_id}
     headers = {
         "xi-api-key": api_key,
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
-    print(f"[DEBUG] request: url={url}, body_keys={list(body.keys())}, headers keys={list(headers.keys())}", file=sys.stderr)
     
     try:
         response = requests.post(url, json=body, headers=headers, timeout=120)
@@ -211,25 +208,16 @@ def main() -> int:
     args = parser.parse_args()
 
     api_key = os.environ.get("ELEVENLABS_API_KEY")
-    # If voice_id is passed via file (to avoid GitHub secret masking), read it from there
-    voice_id_file = os.environ.get("ELEVENLABS_VOICE_ID_FILE")
-    if voice_id_file and os.path.exists(voice_id_file):
-        voice_id = Path(voice_id_file).read_text(encoding="utf-8").strip()
-        print(f"[DEBUG] voice_id read from file: {voice_id_file}", file=sys.stderr)
-    else:
-        voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or os.environ.get("ELEVENLABS_VOICE_ID_TEST")
-    
+    voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    
     if not api_key or not voice_id:
         print(
             "ERROR: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set "
-            "(use repository secrets, never committed values).",
+            "(use repository secrets and environment variables).",
             file=sys.stderr,
         )
         return 2
-    
-    # Temporary debug: print voice_id details
-    print(f"[DEBUG] voice_id type: {type(voice_id)}, len: {len(voice_id)}, repr: {repr(voice_id)}", file=sys.stderr)
 
     knowledge_dir: Path = args.knowledge_dir
     manifest = load_manifest()
