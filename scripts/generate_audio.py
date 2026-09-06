@@ -200,6 +200,9 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    
+    # Temporary debug: print voice_id details
+    print(f"[DEBUG] voice_id type: {type(voice_id)}, len: {len(voice_id)}, repr: {repr(voice_id)}", file=sys.stderr)
 
     knowledge_dir: Path = args.knowledge_dir
     manifest = load_manifest()
