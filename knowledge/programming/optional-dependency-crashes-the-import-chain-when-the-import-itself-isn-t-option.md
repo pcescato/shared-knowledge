@@ -12,8 +12,6 @@ tags:
 title: Optional dependency crashes the import chain when the import itself isn't optional
 ---
 
-# Optional dependency crashes the import chain when the import isn't optional
-
 ## Problem
 
 A Python package declares one of its dependencies as optional, grouped
