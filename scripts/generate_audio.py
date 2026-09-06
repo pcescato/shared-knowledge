@@ -157,6 +157,8 @@ def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
         model_id: TTS model ID
     """
     url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
+    print(f"[DEBUG] synthesize: voice_id={repr(voice_id)}, url={url}", file=sys.stderr)
+    
     body = {"text": text, "model_id": model_id}
     headers = {
         "xi-api-key": api_key,
@@ -210,6 +212,9 @@ def main() -> int:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    
+    # Debug: check what Python received
+    print(f"[DEBUG] voice_id from env: {repr(voice_id)}, len={len(voice_id) if voice_id else 'None'}", file=sys.stderr)
     
     if not api_key or not voice_id:
         print(
