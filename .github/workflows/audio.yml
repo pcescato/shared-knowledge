@@ -81,6 +81,7 @@ jobs:
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          EL_VOICE_ID: 'hpp4J3VqNfWAUOO0d1Us'
         run: |
           python3 - <<'EOF'
           import hashlib, os
@@ -88,10 +89,9 @@ jobs:
               value = os.environ.get(name) or ""
               fingerprint = hashlib.sha256(value.encode()).hexdigest()[:12] if value else "-"
               print(f"secret {name}: len={len(value)} sha256[:12]={fingerprint}")
-          echo "public EL_VOICE_ID: len=${#EL_VOICE_ID}"
+          voice_id = os.environ.get("EL_VOICE_ID", "")
+          print(f"public EL_VOICE_ID: len={len(voice_id)}")
           EOF
-        env:
-          EL_VOICE_ID: 'hpp4J3VqNfWAUOO0d1Us'
 
       # generate_audio.py exits non-zero if ANY article failed, even when the
       # others succeeded. continue-on-error keeps the successful audio in the
