@@ -42,10 +42,14 @@ import os
 import re
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import requests
+except ImportError:
+    print("ERROR: requests library required. Install with: pip install requests", file=sys.stderr)
+    sys.exit(2)
 
 MANIFEST_PATH = Path(".audio_manifest.json")
 AUDIO_ROOT = Path("site/public/audio")
@@ -148,26 +152,26 @@ def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
     api_key_preview = f"{api_key[:6]}...{api_key[-6:]}" if len(api_key) > 12 else "?"
     print(f"[DEBUG] synthesize: voice_id_preview={voice_id_preview}, api_key_preview={api_key_preview}, url_len={len(url)}", file=sys.stderr)
     
-    body = json.dumps({"text": text, "model_id": model_id}).encode("utf-8")
+    body = {"text": text, "model_id": model_id}
     headers = {
         "xi-api-key": api_key,
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
-    print(f"[DEBUG] request: url={url}, body_len={len(body)}, headers keys={list(headers.keys())}", file=sys.stderr)
+    print(f"[DEBUG] request: url={url}, body_keys={list(body.keys())}, headers keys={list(headers.keys())}", file=sys.stderr)
     
-    request = urllib.request.Request(
-        url,
-        data=body,
-        headers=headers,
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return response.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise urllib.error.HTTPError(exc.url, exc.code, f"{exc.reason}: {detail}", exc.headers, exc.fp) from exc        
+        response = requests.post(url, json=body, headers=headers, timeout=120)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as exc:
+        error_msg = str(exc)
+        if hasattr(exc, 'response') and exc.response is not None:
+            try:
+                error_msg = exc.response.text
+            except:
+                pass
+        raise urllib.error.HTTPError(url, exc.response.status_code if hasattr(exc, 'response') and exc.response else 500, error_msg, {}, None) from exc        
 
 
 # ---------------------------------------------------------------------------
