@@ -43,19 +43,14 @@ import re
 import subprocess
 import sys
 import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-
-try:
-    import requests
-except ImportError:
-    print("ERROR: requests library required. Install with: pip install requests", file=sys.stderr)
-    sys.exit(2)
 
 MANIFEST_PATH = Path(".audio_manifest.json")
 AUDIO_ROOT = Path("site/public/audio")
 KNOWLEDGE_ROOT = Path("knowledge")
-ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/hpp4J3VqNfWAUOO0d1Us"
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 DEFAULT_MODEL_ID = "eleven_multilingual_v2"
 
 
@@ -146,42 +141,28 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
 # ---------------------------------------------------------------------------
 # ElevenLabs API
 # ---------------------------------------------------------------------------
-        
+
+
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
-    """Generate audio via ElevenLabs API.
-    
-    Args:
-        text: Article text to synthesize
-        api_key: ElevenLabs API key (secret)
-        voice_id: Voice ID (public identifier, configurable) - currently hardcoded
-        model_id: TTS model ID
-    """
-    url = ELEVENLABS_TTS_URL
-    print(f"[DEBUG] synthesize: voice_id param={repr(voice_id)}, url={url}", file=sys.stderr)
-    print(f"[DEBUG] text length: {len(text)}, text preview: {text[:50]}...", file=sys.stderr)
-    
-    body = {"text": text, "model_id": model_id}
-    headers = {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
-    }
-    
-    print(f"[DEBUG] request body: {list(body.keys())}, headers: {list(headers.keys())}", file=sys.stderr)
-    
+    """Call the ElevenLabs text-to-speech endpoint and return audio bytes."""
+    request = urllib.request.Request(
+        ELEVENLABS_TTS_URL.format(voice_id=voice_id),
+        data=json.dumps({"text": text, "model_id": model_id}).encode("utf-8"),
+        headers={
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+        method="POST",
+    )
     try:
-        response = requests.post(url, json=body, headers=headers, timeout=120)
-        print(f"[DEBUG] response status: {response.status_code}", file=sys.stderr)
-        response.raise_for_status()
-        return response.content
-    except requests.exceptions.RequestException as exc:
-        error_msg = str(exc)
-        if hasattr(exc, 'response') and exc.response is not None:
-            try:
-                error_msg = exc.response.text
-            except:
-                pass
-        raise urllib.error.HTTPError(url, exc.response.status_code if hasattr(exc, 'response') and exc.response else 500, error_msg, {}, None) from exc        
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise urllib.error.HTTPError(
+            exc.url, exc.code, f"{exc.reason}: {detail}", exc.headers, exc.fp
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -216,15 +197,10 @@ def main() -> int:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
-    print(f"[DEBUG-CI] voice_id={voice_id!r} len={len(voice_id) if voice_id else 0} api_key_len={len(api_key) if api_key else 0}", file=sys.stderr)
-    
-    # Debug: check what Python received
-    print(f"[DEBUG] voice_id from env: {repr(voice_id)}, len={len(voice_id) if voice_id else 'None'}", file=sys.stderr)
-    
     if not api_key or not voice_id:
         print(
             "ERROR: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set "
-            "(use repository secrets and environment variables).",
+            "(use repository secrets, never committed values).",
             file=sys.stderr,
         )
         return 2
