@@ -200,7 +200,14 @@ def main() -> int:
     args = parser.parse_args()
 
     api_key = os.environ.get("ELEVENLABS_API_KEY")
-    voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or os.environ.get("ELEVENLABS_VOICE_ID_TEST")
+    # If voice_id is passed via file (to avoid GitHub secret masking), read it from there
+    voice_id_file = os.environ.get("ELEVENLABS_VOICE_ID_FILE")
+    if voice_id_file and os.path.exists(voice_id_file):
+        voice_id = Path(voice_id_file).read_text(encoding="utf-8").strip()
+        print(f"[DEBUG] voice_id read from file: {voice_id_file}", file=sys.stderr)
+    else:
+        voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or os.environ.get("ELEVENLABS_VOICE_ID_TEST")
+    
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
     if not api_key or not voice_id:
         print(

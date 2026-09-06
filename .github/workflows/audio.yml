@@ -97,11 +97,21 @@ jobs:
           ELEVENLABS_VOICE_ID_TEST: ${{ secrets.ELEVENLABS_VOICE_ID_TEST }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
         run: |
+          # Work around GitHub Actions secret masking: write voice_id to a temp file
+          # so it won't be masked in subprocess arguments/env
+          mkdir -p /tmp/el
+          echo -n "$ELEVENLABS_VOICE_ID" > /tmp/el/voice_id.txt
+          export ELEVENLABS_VOICE_ID_FILE=/tmp/el/voice_id.txt
+          unset ELEVENLABS_VOICE_ID
+          
           ARGS=""
           if [ -n "${{ steps.changed.outputs.from }}" ]; then
             ARGS="--changed-from ${{ steps.changed.outputs.from }}"
           fi
           python scripts/generate_audio.py $ARGS
+          
+          # Cleanup
+          rm -f /tmp/el/voice_id.txt
 
       - name: Detect changes
         id: diff
