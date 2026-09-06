@@ -1,9 +1,7 @@
 ---
 category: Programming
 created_at: '2026-09-06'
-description: A dependency declared as optional in pyproject.toml can still crash a
-  package on import if the module that needs it imports it unconditionally at the
-  top level.
+description: "A dependency declared as optional in pyproject.toml can still crash a package on import if the module that needs it imports it unconditionally at the top level."
 source: community
 tags:
 - python
