@@ -242,7 +242,6 @@ Follow ALL of these rules before calling the publish_knowledge tool.
    assumptions, environment details and caveats.
 5. Structure the Markdown content as:
 
-   # Title
    ## Problem
    ## Context
    ## Solution
@@ -251,6 +250,9 @@ Follow ALL of these rules before calling the publish_knowledge tool.
 
    "## Problem" and "## Solution" are MANDATORY. Omit "## Context",
    "## Why it works" or "## Caveats" ONLY when genuinely not applicable.
+   The content must NEVER start with a top-level h1 heading (#): the page
+   title is already rendered from the "title" frontmatter field by the
+   documentation site, so an h1 in the content would duplicate it.
 6. The title must concisely describe the problem solved.
 7. The description must be a one-sentence standalone summary of the
    article.

@@ -252,6 +252,16 @@ class TestKnowledgeArticleGuidelines:
         # Ends with the explicit call-to-action: publish, nothing else
         assert text.rstrip().endswith("publish_knowledge is the only publication path.")
         assert "publish_knowledge" in text
+        # No h1 in the content: the page title comes from frontmatter, a
+        # leading "#" in the body would duplicate it on the rendered page.
+        assert "NEVER start with a top-level h1" in text
+        assert "# Title" not in text
+        assert not any(
+            line.strip() == "# Title" for line in text.splitlines()
+        )
+        # The structure example starts directly at the h2 sections.
+        structure = text.split("Structure the Markdown content as:")[1]
+        assert structure.lstrip().startswith("## Problem")
 
     def test_prompt_does_not_mention_the_server_generating_articles(self):
         """The guidelines describe caller-side structuring, not server-side generation."""
