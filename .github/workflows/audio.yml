@@ -10,6 +10,12 @@
 # default branch, so the static documentation site ships the audio without
 # any runtime dependency on ElevenLabs.
 #
+# Partial-failure guarantee: scripts/generate_audio.py isolates failures per
+# article, so if some articles fail while others succeed, the .mp3 files of
+# the successful articles are still committed (continue-on-error on the
+# generate step plus if: always() on the diff/commit steps); only then does
+# the job fail explicitly. Inspect the [FAIL] lines in the job log.
+#
 # Required secrets (never committed):
 #   ELEVENLABS_API_KEY   - ElevenLabs API key
 #   ELEVENLABS_VOICE_ID  - voice to use (configurable, not hard-coded)
@@ -60,7 +66,13 @@ jobs:
             echo "from=" >> "$GITHUB_OUTPUT"
           fi
 
+      # generate_audio.py exits non-zero if ANY article failed, even when the
+      # others succeeded. continue-on-error keeps the successful audio in the
+      # workspace; steps.generate.outcome preserves the failure so the last
+      # step can fail the job explicitly after the artifacts are committed.
       - name: Generate audio for new or changed articles
+        id: generate
+        continue-on-error: true
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
@@ -74,6 +86,7 @@ jobs:
 
       - name: Detect changes
         id: diff
+        if: always()
         run: |
           if [ -n "$(git status --porcelain -- site/public/audio .audio_manifest.json)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -82,7 +95,7 @@ jobs:
           fi
 
       - name: Commit audio artifacts
-        if: steps.diff.outputs.changed == 'true'
+        if: always() && steps.diff.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -90,10 +103,13 @@ jobs:
           git commit -m "Generate audio for merged knowledge articles"
           git push
 
-      - name: Report failures
-        if: failure()
+      # Single step responsible for failing the job: it runs only when audio
+      # generation failed, AFTER the successful artifacts were committed.
+      - name: Fail job on partial generation failure
+        if: always() && steps.generate.outcome == 'failure'
         run: |
-          echo "::error::ElevenLabs audio generation failed for one or more articles." \
-               "The Markdown knowledge base is valid and unchanged," \
-               "and no audio was published for the failed articles." \
-               "Inspect the job log for the [FAIL] lines."
+          echo "::error::Audio generation failed for one or more articles." \
+               "The .mp3 files generated for the successful articles have still" \
+               "been committed; the Markdown knowledge base is valid and unchanged." \
+               "Inspect the [FAIL] lines in the job log."
+          exit 1
