@@ -60,23 +60,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Raw curl test from runner
-        env:
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-        run: |
-          curl -sS \
-            -o /tmp/test.mp3 \
-            -w "HTTP %{http_code}\n" \
-            -X POST \
-            "https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}" \
-            -H "xi-api-key: ${ELEVENLABS_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{"text":"ping","model_id":"eleven_multilingual_v2"}'
-
-          file /tmp/test.mp3 || true
-          head -c 300 /tmp/test.mp3
-
       - name: Determine articles changed since the previous successful run
         id: changed
         run: |

@@ -195,12 +195,8 @@ def main() -> int:
     args = parser.parse_args()
 
     api_key = os.environ.get("ELEVENLABS_API_KEY")
-    import hashlib as _h
-    print(f"[CHECK-KEY] len={len(api_key) if api_key else 0} sha256_12={_h.sha256((api_key or '').encode()).hexdigest()[:12]}", file=sys.stderr)
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
-    import hashlib
-    print(f"[CHECK] len={len(voice_id) if voice_id else 0} sha256_12={hashlib.sha256((voice_id or '').encode()).hexdigest()[:12]}", file=sys.stderr)
     if not api_key or not voice_id:
         print(
             "ERROR: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set "
