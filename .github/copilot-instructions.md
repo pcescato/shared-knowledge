@@ -5,9 +5,8 @@
 **What this project does:** An MCP (Model Context Protocol) server that lets AI assistants search a community knowledge base and publish solved problems as GitHub Pull Requests for human review.
 
 **Main entry points:**
-- `server.py` (381 lines) — MCP FastMCP server with three tools: `search_knowledge`, `get_knowledge`, `publish_knowledge`
-- `github.py` (300 lines) — GitHub API integration for creating PRs; reads `GITHUB_TOKEN` from environment
-- `llm.py` (249 lines) — LLM provider abstraction; default is Gemini via `google-genai` SDK
+- `server.py` — MCP FastMCP server with three tools (`search_knowledge`, `get_knowledge`, `publish_knowledge`) and one prompt (`knowledge_article_guidelines`)
+- `github.py` — GitHub API integration for creating PRs; reads `GITHUB_TOKEN` from environment
 
 ## Build, Test & Lint Commands
 
@@ -55,13 +54,14 @@ User solves problem with AI
     ↓
 User requests: "Share this solution"
     ↓
-publish_knowledge() called
+Caller structures the article itself (knowledge_article_guidelines prompt)
     ↓
-LLM generates structured article (ArticleDraft Pydantic model)
+publish_knowledge() called with the five required fields
+(title, description, category, tags, content — all required)
     ↓
 _validate_article() checks content + metadata
     ↓
-_scan_secrets() blocks API keys, tokens, PEM keys, emails
+Secret scan blocks API keys, tokens, PEM keys, emails
     ↓
 create_pull_request() on GitHub (never commits to main)
     ↓
@@ -70,10 +70,16 @@ Human review + merge
 Site deployment (deploy.yml) + audio generation (audio.yml)
 ```
 
+**No LLM inside the server:** the caller (the user's AI assistant) structures
+the article and submits the five fields; the server only validates and
+publishes. There is deliberately a single publication path — no conditional
+fallback generation.
+
 ### Module responsibilities
 
 **server.py**
-- Exposes three MCP tools: `search_knowledge`, `get_knowledge`, `publish_knowledge`
+- Exposes three MCP tools: `search_knowledge`, `get_knowledge`, `publish_knowledge`, plus the `knowledge_article_guidelines` MCP prompt (structuring rules for callers)
+- `publish_knowledge` performs **no generation**: it builds the article dict from the five required `PublishInput` fields, validates, then delegates to github.py
 - Implements search with deterministic field weighting (title: 8.0, tags: 6.0, description: 4.0, category: 2.0, body: 1.0)
 - Article validation enforces `REQUIRED_SECTIONS = ["## Problem", "## Solution"]`
 - Path traversal protection on `get_knowledge()` (validates `id` stays inside `KNOWLEDGE_DIR`)
@@ -86,23 +92,15 @@ Site deployment (deploy.yml) + audio generation (audio.yml)
 - Opens PR; returns PR URL or raises `PublisherError`
 - **Critical:** never pushes to main/default branch
 
-**llm.py**
-- Provider abstraction — swap LLM without changing server.py
-- Default: Gemini via `google-genai` SDK (reads `GOOGLE_API_KEY` from environment)
-- Requests structured JSON output constrained by `ArticleDraft` Pydantic schema
-- Category validation happens twice: in LLM prompt AND re-validated against `server.CATEGORIES`
-- Every error (missing key, malformed response, invalid schema) raises `ProviderError`
-
 ### Configuration
 
 **Environment variables**
 - `KNOWLEDGE_DIR` — path to local knowledge base folder (default: `./knowledge/`)
 - `GITHUB_TOKEN` — GitHub personal access token (required to publish)
-- `GOOGLE_API_KEY` — Gemini API key (required for publish_knowledge)
 - `GITHUB_REPOSITORY` — full repo path (default: `pcescato/shared-knowledge`)
 
 **Categories** (server.py, `CATEGORIES` constant)
-Currently: DevOps, Databases, Hardware, Linux, Web Development, Backend
+Currently: AI, Backend, Cloud, Databases, DevOps, Frontend, Hardware, Linux, Security, Web Development, Programming, Open Source, Tools, Other
 
 **Search ranking** (server.py, `FIELD_WEIGHTS`)
 - Title: 8.0
@@ -148,10 +146,7 @@ created_at: "YYYY-MM-DD"
 ...
 ```
 
-**Frontmatter parsing:** Custom lightweight hand-rolled parser in `_parse_frontmatter()` (spec section 7). Supports:
-- Scalars: `key: value` or `key: "quoted value"`
-- YAML lists: `tags:\n  - item1\n  - item2`
-- No nested objects; no list support outside `tags`
+**Frontmatter parsing:** Delegates to the `python-frontmatter` library (`_parse_frontmatter()` is a thin compatibility shim). Tag lists are handled correctly; no nested objects.
 
 ### Secret scanning (github.py, `_scan_secrets()`)
 Blocks commits if they contain:
@@ -165,7 +160,7 @@ Conservative by design — false positives are cheap in PR review.
 
 ### Error handling
 - `PublisherError` — raised by github.py; returned to MCP client as error status
-- `ProviderError` — raised by llm.py; returned to MCP client as error status
+- Pydantic `ValidationError` on `PublishInput` — missing/invalid structured fields are rejected before anything reaches GitHub
 - FileNotFoundError from `get_knowledge()` — caught and converted to clean MCP error
 
 ### Tests & fixtures
@@ -197,9 +192,8 @@ Conservative by design — false positives are cheap in PR review.
 
 ## Known TODOs & Limitations
 
-- `publish_knowledge` is **not fully functional yet** — `_generate_article()` and `_create_pull_request()` raise `NotImplementedError`. Search and fetch tools work.
+- `publish_knowledge` requires the caller to structure the article (see the `knowledge_article_guidelines` prompt); the server validates but never generates content
 - `search_knowledge` has no ranking by relevance snippet — returns frontmatter `description` only, even for body matches
-- Frontmatter parser is hand-rolled — no nested objects, no list support outside `tags`
 - Path traversal check in `get_knowledge()` is basic — should be hardened before exposing to third-party clients
 - Duplicate detection is not implemented — deferred to maintainer review in PR
 - Article structure validator enforces only `["## Problem", "## Solution"]` (2 sections), but spec lists 5 sections and says omit only if not applicable — mismatch is intentional MVP simplification

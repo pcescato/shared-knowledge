@@ -30,10 +30,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# publish_knowledge providers (kept optional so the search/get tools work
-# without them).
-gemini = ["google-genai>=1,<2"]
- publishing = ["httpx>=0.27,<1"]
+# publish_knowledge provider (kept optional so the search/get tools work
+# without it).
+publishing = ["httpx>=0.27,<1"]
 
 [dependency-groups]
 dev = [

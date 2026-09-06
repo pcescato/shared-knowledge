@@ -1,21 +1,29 @@
 """
 Shared Knowledge MCP - server skeleton (MVP)
 
-Exposes three tools, matching the spec's section 6 (MCP Interface):
+Exposes three tools and one prompt, matching the spec's section 6 (MCP
+Interface):
   - search_knowledge : find relevant articles in the knowledge base
   - get_knowledge     : fetch one article's full content + metadata
-  - publish_knowledge : turn a solved-problem conversation excerpt into a
-                         structured English article and open a GitHub PR
+  - publish_knowledge : receive an already-structured article and open a
+                         GitHub PR for human review
+  - knowledge_article_guidelines (prompt): the structuring rules the
+                         caller must follow before publishing
 
-search_knowledge and get_knowledge already work against a local
-`knowledge/` folder of Markdown files with YAML frontmatter (good enough
-for the demo; swap the naive grep for the public GitHub repo once it
-exists). search_knowledge ranks matches with a simple deterministic
+The server performs NO article generation: the caller (the user's AI
+assistant, whatever it is) structures the article itself, guided by the
+knowledge_article_guidelines prompt, then calls publish_knowledge with
+the five required fields. The server only validates (structure + secret
+scan) and submits. No LLM call ever happens inside this server.
+
+search_knowledge and get_knowledge work against a local `knowledge/`
+folder of Markdown files with YAML frontmatter (good enough for the
+demo; swap the naive grep for the public GitHub repo once it exists).
+search_knowledge ranks matches with a simple deterministic
 field-weighting scheme - see FIELD_WEIGHTS below - no embeddings, no
-vector database, no external service. publish_knowledge generates the
-article through the isolated LLM provider in llm.py (Gemini by default)
-and submits it as a GitHub Pull Request through the isolated publisher
-in github.py - never by committing to the default branch.
+vector database, no external service. publish_knowledge submits the
+article as a GitHub Pull Request through the isolated publisher in
+github.py - never by committing to the default branch.
 
 get_knowledge resolves `id` inside KNOWLEDGE_DIR and refuses anything
 that escapes it (path traversal) or that does not exist - it returns a
@@ -30,15 +38,13 @@ Or point a Claude Desktop / claude.ai connector config at this script.
 import glob
 import os
 import re
-from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import frontmatter
 from github import PublisherError, create_pull_request
-from llm import ProviderError, generate_article
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 mcp = FastMCP("shared-knowledge")
 
@@ -211,16 +217,72 @@ def get_knowledge(id: str) -> GetKnowledgeOutput:
 
 
 # --------------------------------------------------------------------------
+# knowledge_article_guidelines (MCP prompt)
+# --------------------------------------------------------------------------
+
+def _article_guidelines() -> str:
+    """The structuring rules the caller must follow before publish_knowledge.
+
+    Pure function of CATEGORIES, kept separate so tests can assert on the
+    exact guidance while the prompt stays a thin MCP wrapper.
+    """
+    return f"""You are preparing a knowledge article for a community knowledge base.
+Follow ALL of these rules before calling the publish_knowledge tool.
+
+1. Write the article in English, as native technical documentation -
+   not a literal translation, regardless of the language of the
+   conversation it comes from.
+2. The article must be standalone knowledge, NOT a conversation record:
+   no dialogue, no "as I said above", and no references to the user,
+   the assistant, or the original conversation.
+3. Keep only knowledge reusable by someone else facing the same
+   problem; drop small talk, trial-and-error noise and dead ends.
+4. Do not invent facts, commands, versions or configuration not
+   supported by the source material. Explicitly preserve important
+   assumptions, environment details and caveats.
+5. Structure the Markdown content as:
+
+   # Title
+   ## Problem
+   ## Context
+   ## Solution
+   ## Why it works
+   ## Caveats
+
+   "## Problem" and "## Solution" are MANDATORY. Omit "## Context",
+   "## Why it works" or "## Caveats" ONLY when genuinely not applicable.
+6. The title must concisely describe the problem solved.
+7. The description must be a one-sentence standalone summary of the
+   article.
+8. Choose exactly ONE category, verbatim from this list:
+   {", ".join(CATEGORIES)}
+9. Provide 3 to 8 tags: lowercase, concise, technically meaningful,
+   reusable, hyphens instead of spaces, no unnecessary punctuation.
+
+Once the article is structured, call the publish_knowledge tool with
+the five required fields - title, description, category, tags and
+content. Do not return the article as JSON anywhere else, do not save
+it to a file: publish_knowledge is the only publication path."""
+
+
+@mcp.prompt()
+def knowledge_article_guidelines() -> str:
+    """Rules the caller must follow to structure an article before calling publish_knowledge."""
+    return _article_guidelines()
+
+
+# --------------------------------------------------------------------------
 # publish_knowledge
 # --------------------------------------------------------------------------
 
 class PublishInput(BaseModel):
-    conversation_excerpt: str = Field(
-        ..., description="The relevant part of the conversation to turn into an article."
-    )
-    language_hint: Optional[str] = Field(
-        None, description="Source language of the conversation, if known."
-    )
+    """A fully structured article, built by the caller (never by the server)."""
+
+    title: str
+    description: str
+    category: str
+    tags: list[str]
+    content: str
 
 
 class PublishOutput(BaseModel):
@@ -232,22 +294,27 @@ class PublishOutput(BaseModel):
 
 @mcp.tool()
 def publish_knowledge(input: PublishInput) -> PublishOutput:
-    """Turn a solved-problem conversation excerpt into a standalone English
-    knowledge article and submit it as a GitHub Pull Request for human review.
+    """Submit an already-structured knowledge article as a GitHub Pull Request
+    for human review.
 
-    Pipeline (spec section 5.2):
-      1. generate {title, description, category, tags, content} via the LLM
-      2. validate structure + run the secret scan (never publish directly)
-      3. create a branch, commit the article, open a PR
+    The CALLER structures the article (follow the knowledge_article_guidelines
+    prompt): English, standalone, sections per spec 7.3, category from
+    CATEGORIES, 3-8 lowercase hyphenated tags. The server does NOT generate
+    or rewrite anything - no LLM is involved - it only:
+
+      1. builds the article record from the five required fields;
+      2. validates structure + runs the secret scan (never publish directly);
+      3. creates a branch, commits the article, opens a PR.
+
     The result always signals "submitted for review", never "published".
     """
-    try:
-        article = _generate_article(input.conversation_excerpt, input.language_hint)
-    except ProviderError as exc:
-        # Missing key, API failure, malformed/invalid structured output...
-        return PublishOutput(status="error", error=str(exc))
-    except Exception as exc:  # noqa: BLE001 - surface any generation failure to the caller
-        return PublishOutput(status="error", error=f"generation failed: {exc}")
+    article = {
+        "title": input.title,
+        "description": input.description,
+        "category": input.category,
+        "tags": list(input.tags),
+        "content": input.content,
+    }
 
     problems = _validate_article(article)
     if problems:
@@ -331,33 +398,9 @@ def _searchable_fields(post: frontmatter.Post) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------
-# External integrations - both are now implemented and isolated:
-#   - llm.py    : Gemini article generation (LLM_PROVIDER)
+# External integration - the only one left, isolated:
 #   - github.py : PR-based publication workflow (GITHUB_TOKEN)
 # --------------------------------------------------------------------------
-
-def _generate_article(excerpt: str, language_hint: Optional[str]) -> dict:
-    """Turn the excerpt into a structured article via the isolated LLM provider.
-
-    Delegates to llm.generate_article (Gemini by default, selected through
-    LLM_PROVIDER). Must return:
-        {
-          "title": str,
-          "description": str,
-          "category": str,   # one of CATEGORIES
-          "tags": list[str],
-          "content": str,    # full Markdown body, sections per spec 7.3
-        }
-
-    The prompt enforces: English output, standalone article (no "as I said
-    above", no references to the user or the conversation), category chosen
-    from CATEGORIES only (re-validated afterwards), tags lowercase and
-    reusable. Raises llm.ProviderError on configuration, API, or response
-    errors - publish_knowledge maps that to a clean MCP-level error and
-    never fabricates an article.
-    """
-    return generate_article(excerpt, language_hint, CATEGORIES)
-
 
 def _create_pull_request(article: dict) -> str:
     """Submit the article as a GitHub Pull Request and return the PR URL.

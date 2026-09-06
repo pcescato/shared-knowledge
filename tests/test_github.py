@@ -265,22 +265,33 @@ class TestFailures:
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         from unittest.mock import patch as _patch
 
-        with _patch("server._generate_article", return_value=dict(ARTICLE)):
+        with _patch("server.create_pull_request", side_effect=PublisherError("GITHUB_TOKEN is not set")):
             output = server.publish_knowledge(
-                server.PublishInput(conversation_excerpt="some solved problem")
+                server.PublishInput(
+                    title=ARTICLE["title"],
+                    description=ARTICLE["description"],
+                    category=ARTICLE["category"],
+                    tags=ARTICLE["tags"],
+                    content=ARTICLE["content"],
+                )
             )
         assert output.status == "error"
         assert "GITHUB_TOKEN" in output.error
 
     def test_publish_knowledge_full_success(self, monkeypatch):
-        """Generation + validation + publication all succeed end to end."""
+        """Validation + publication succeed end to end."""
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
         from unittest.mock import patch as _patch
 
-        with _patch("server._generate_article", return_value=dict(ARTICLE)), \
-             _patch("server.create_pull_request", return_value="https://github.com/pcescato/shared-knowledge/pull/7"):
+        with _patch("server.create_pull_request", return_value="https://github.com/pcescato/shared-knowledge/pull/7"):
             output = server.publish_knowledge(
-                server.PublishInput(conversation_excerpt="some solved problem")
+                server.PublishInput(
+                    title=ARTICLE["title"],
+                    description=ARTICLE["description"],
+                    category=ARTICLE["category"],
+                    tags=ARTICLE["tags"],
+                    content=ARTICLE["content"],
+                )
             )
         assert output.status == "submitted"
         assert output.pull_request.endswith("/pull/7")

@@ -1,50 +1,53 @@
-# Notes from the README generation — 2026-09-04
+# Notes — project status (2026-09-05, day before submission)
 
-Side notes produced while writing `README.md` from `Shared Knowledge MCP.md` and `server.py`. These are observations, questions and warnings — no code was changed.
+This file replaces the 2026-09-04 version, which is entirely outdated: it
+described a state where `publish_knowledge` was not implemented. That is no
+longer the case.
 
----
+## ✅ Verified tonight (real execution, not just code review)
 
-## ⚠️ Warnings
+- **91 tests run with `pytest -v`: all passing** (`pytest.ini_options` in
+  `pyproject.toml`, venv environment with the project's dependencies).
+- **Astro/Starlight build successful** (`npm run build`, 28 pages generated,
+  consistent layout between the home page and article/category pages).
+- `publish_knowledge` is fully implemented: the caller (the user's AI
+  assistant) structures the article itself — guided by the
+  `knowledge_article_guidelines` MCP prompt — and the server only validates
+  (structure + secret scan) and submits a GitHub Pull Request (`github.py`),
+  never a direct commit to the default branch.
+  *(Historical note, 2026-09-06: the internal Gemini generation path — former
+  `llm.py`, `GEMINI_API_KEY`, `LLM_PROVIDER` — was removed on purpose. The
+  server now performs no LLM call at all; that was a deliberate design
+  decision, documented in README.md.)*
+- `get_knowledge` guards against path traversal (`Path.resolve()` +
+  `is_relative_to()`), tested against 5 cases.
+- Frontmatter parsing delegates to the real `python-frontmatter` library
+  (tag lists handled correctly) — no longer a hand-rolled parser.
 
-### 1. `publish_knowledge` is not functional yet
+## 🔧 Fixed tonight
 
-`_generate_article()` (LLM call to Gemini) and `_create_pull_request()` (GitHub API call) both raise `NotImplementedError`. Until they are wired, the publish flow returns `status: "error"` with the TODO message. The README describes the *target* behavior, so it currently documents slightly more than the code delivers — it flags the two TODOs in the Contributing section, but consider adding a "Status / Roadmap" banner at the top of the README once you're closer to a release.
+- `pyproject.toml`: `httpx` was declared as an optional dependency
+  (`[project.optional-dependencies]`) while `github.py` imports it
+  unconditionally — a plain `pip install` without the extra crashed the
+  server on startup. Moved to the main dependencies.
+- Astro layout: article/category pages were using a minimal "standalone"
+  layout instead of `StarlightPage` — fixed to align sidebar, search, and
+  syntax highlighting with the home page.
 
-### 2. The spec's required article structure is stricter than the validator
+## ⚠️ Not verified — worth knowing before demoing publicly
 
-The spec (section 7.3) defines five sections (Problem, Context, Solution, Why it works, Caveats) and says sections may be omitted when genuinely not applicable — but the code's `REQUIRED_SECTIONS = ["## Problem", "## Solution"]` only enforces two. That's a reasonable MVP simplification, but the mismatch should eventually be reconciled (either documented or enforced), otherwise LLM output may silently drop sections the spec considers important.
+- **The GitHub Actions audio-generation workflow (`generate_audio.py` →
+  ElevenLabs) has not been triggered under real conditions** (push to main
+  after a merge). The logic is unit-tested (13 tests in
+  `test_generate_audio.py`, all passing with the ElevenLabs API mocked), but
+  never run against the real API.
+- The GitHub Pages deployment itself (the CI workflow, not just the local
+  build) has not been observed in action.
 
-### 3. `search_knowledge` results have no ranking or snippet
+## Process note
 
-The search is a naive "term appears anywhere in the file" match — every matching file is returned equally (capped at 10), and `summary` is just the frontmatter `description`. That's fine for the demo, but the README's search example implies relevance. Consider sorting by term frequency before the cap, or at least mentioning the limitation in the README (I kept the README neutral on this).
-
-### 4. `get_knowledge` is path-traversal friendly
-
-`id` is used directly to build a file path (`os.path.join(KNOWLEDGE_DIR, f"{id}.md")`) with no normalization/sandboxing. In a local dev tool this is low risk, but before exposing the server to third-party clients, validate that the resolved path stays inside `KNOWLEDGE_DIR`. Nonexistent paths also surface as raw `FileNotFoundError` exceptions to the MCP client.
-
-### 5. The secret scan is intentionally conservative — keep it that way
-
-The regex list covers generic API-key shapes, GitHub PATs, Google keys, PEM keys and emails. Good defaults, but it won't catch passwords in config snippets, AWS keys (`AKIA…`), Slack tokens, JWTs, or `Authorization:` headers in general. Since false positives are cheap in PR review, err on adding more patterns rather than fewer.
-
-### 6. License/copyright note
-
-The LICENSE is MIT © Pascal CESCATO (2026). I attributed it accordingly at the bottom of the README. Check the repo name/owner placeholder (`<owner>/shared-knowledge-mcp.git`) in the README's clone command and the badges before publishing.
-
----
-
-## ❓ Questions
-
-1. **GitHub repository of record** — the README clone URL and `knowledge/` URLs are placeholders. What is the actual GitHub org/repo where articles will be PR'd?
-2. **Site location** — the spec puts the Astro/Starlight site in `site/`, but no `site/` folder or `package.json` exists yet. Should the README link a live URL once GitHub Pages is up?
-3. **LLM provider** — `server.py` says "Gemini (Google AI)" in the TODO, while the spec only says "the configured LLM". Is Gemini a hard requirement or just the current choice?
-4. **Duplicate detection** — the spec lists "obvious duplicate content" as a rejection condition, but there's no duplicate check in `_validate_article`. Planned, or deferred to maintainer review?
-5. **Language of the spec file** — `Shared Knowledge MCP.md` is the authoritative spec; should it stay at the repo root (it's linked from nowhere at the moment), or move to `docs/` with a README link?
-
----
-
-## 📝 Observations (for information)
-
-- The repo currently contains only `server.py`, the spec, and the LICENSE — there are no tests, no `requirements.txt`/`pyproject.toml`, and no CI workflow yet. Adding a `pyproject.toml` (with `mcp[cli]` and `pydantic` as dependencies) would make installation instructions reproducible.
-- `search_knowledge` returns local file paths as `url`. Once the public GitHub repo exists, these should become `github.com/.../blob/main/...` (or the published site) URLs so clients can link to articles.
-- `_parse_frontmatter` is a minimal hand-rolled parser (no list support — `tags:` entries are ignored). Fine for MVP; the code comment already suggests `python-frontmatter`.
-- The spec's controlled categories include `Databases`, `Hardware`, `Linux`, etc., but the spec's sample repository structure omits some of them (`databases/`, `linux/`, `web-development/` present; mismatch is minor but worth aligning when the `knowledge/` tree is created).
+An automated review (Copilot CLI) flagged a GitHub authentication bug that
+did not correspond to any actual line of code — checked and dismissed on
+2026-09-04. That review's findings were treated as unreliable by default from
+that point on; only the items above were confirmed through manual code
+reading and/or real execution.

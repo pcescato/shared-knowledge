@@ -20,7 +20,7 @@ AI-assisted solution
         ↓
 User chooses to share
         ↓
-MCP structures the knowledge
+Caller structures the article (guidelines prompt)
         ↓
 GitHub Pull Request
         ↓
@@ -61,7 +61,7 @@ The project has three logical components:
 
 | Component | Technology | Role |
 |---|---|---|
-| **MCP Server** | Python + [FastMCP](https://github.com/modelcontextprotocol/python-sdk) | Interaction with AI clients, content generation, validation, classification, tag generation, GitHub integration, knowledge search |
+| **MCP Server** | Python + [FastMCP](https://github.com/modelcontextprotocol/python-sdk) | Interaction with AI clients, validation, GitHub integration, knowledge search. The server performs **no LLM call**: the caller structures the article itself |
 | **Knowledge Repository** | GitHub (Markdown + Git) | Source of truth. No database: Git provides version control, attribution, review, history and rollback |
 | **Documentation Website** | Astro + Starlight + GitHub Pages | Static public interface, generated from the knowledge repository |
 
@@ -70,9 +70,9 @@ The project has three logical components:
                     ↓
 2. User explicitly requests: "Share this solution with the community"
                     ↓
-3. AI invokes publish_knowledge
+3. AI structures the article itself (knowledge_article_guidelines prompt)
                     ↓
-4. MCP generates structured English content (LLM call)
+4. AI invokes publish_knowledge with the five required fields
                     ↓
 5. MCP validates content and metadata + secret scan
                     ↓
@@ -87,11 +87,11 @@ The project has three logical components:
 10. GitHub Actions builds the site → Astro/Starlight → GitHub Pages
 ```
 
-**AI structures; humans decide.** Only merged contributions become publicly available. The published article is also the source of truth for its audio version — audio is generated from the validated Markdown after human review, never before.
+**AI structures; humans decide.** The structuring happens in the caller's assistant (guided by the `knowledge_article_guidelines` prompt), never inside the server; only merged contributions become publicly available. The published article is also the source of truth for its audio version — audio is generated from the validated Markdown after human review, never before.
 
-## MCP tools
+## MCP tools & prompts
 
-The server exposes three tools:
+The server exposes three tools and one prompt:
 
 ### `search_knowledge`
 
@@ -132,20 +132,31 @@ Retrieve the full content and metadata of a known article (discovered via `searc
 
 **Output:** the raw Markdown (`content`) and parsed frontmatter (`metadata`).
 
+### `knowledge_article_guidelines` (prompt)
+
+An MCP prompt returning the structuring rules the caller must follow **before** calling `publish_knowledge`: English only, standalone article (no references to the user, the assistant or the conversation), Markdown structure with mandatory `## Problem` and `## Solution` sections (`## Context` / `## Why it works` / `## Caveats` omitted only when genuinely not applicable), exactly one category from `CATEGORIES`, and 3–8 lowercase hyphenated tags. The prompt ends by instructing the caller to pass the five fields straight to `publish_knowledge` — there is no other publication path.
+
 ### `publish_knowledge`
 
-Turn the relevant part of the current conversation into a standalone English knowledge article and submit it as a GitHub Pull Request.
+Submit an **already-structured** knowledge article as a GitHub Pull Request. The server does **not** generate, translate or rewrite anything — no LLM is involved. The caller (the user's AI assistant, guided by the `knowledge_article_guidelines` prompt) structures the article and provides the five required fields:
 
-**Input:**
+**Input (all fields required):**
 
 ```json
 {
-  "conversation_excerpt": "…the relevant part of the conversation…",
-  "language_hint": "fr"
+  "title": "Protecting Streamlit with Caddy and Authentik",
+  "description": "How to protect a Streamlit application using Caddy and Authentik forward authentication.",
+  "category": "DevOps",
+  "tags": ["caddy", "authentik", "streamlit", "reverse-proxy", "sso"],
+  "content": "# Protecting Streamlit with Caddy and Authentik\n\n## Problem\n…\n\n## Solution\n…"
 }
 ```
 
-`language_hint` is optional — the article is always generated in **English**, whatever the source language.
+- `title`: concise description of the problem solved;
+- `description`: one-sentence standalone summary;
+- `category`: exactly one value from the [controlled vocabulary](#classification--tags);
+- `tags`: 3–8 lowercase, hyphenated, reusable tags;
+- `content`: full Markdown body with the required sections.
 
 **Output:**
 
@@ -160,9 +171,9 @@ Turn the relevant part of the current conversation into a standalone English kno
 Requirements:
 
 - Python 3.10+
-- For `publish_knowledge`: a Gemini (Google AI) API key and a GitHub token — see [Configuration](#configuration)
+- For `publish_knowledge`: a GitHub token — see [Configuration](#configuration)
 
-Dependencies (`mcp`, `pydantic`, `python-frontmatter`) are declared in `pyproject.toml`. Install the project in editable mode with its dev tools:
+Dependencies (`mcp`, `pydantic`, `python-frontmatter`, `httpx`) are declared in `pyproject.toml`. Install the project in editable mode with its dev tools:
 
 ```bash
 git clone https://github.com/pcescato/shared-knowledge.git
@@ -170,10 +181,10 @@ cd shared-knowledge
 pip install -e . --group dev
 ```
 
-To use `publish_knowledge`, also install the provider extras (LLM + GitHub publication):
+To use `publish_knowledge`, install the publishing extra (GitHub publication):
 
 ```bash
-pip install -e '.[gemini,publishing]' --group dev
+pip install -e '.[publishing]' --group dev
 ```
 
 > Using `pip` < 25.1 or another tool? The equivalent is `pip install -e . && pip install pytest` (or `uv sync --dev` with [uv](https://docs.astral.sh/uv/)).
@@ -223,7 +234,8 @@ AI:    I found a relevant community solution covering Caddy, Authentik and forwa
 …the assistant solves a new variant of the problem…
 
 User:  Share this solution with the community.
-AI:    (calls publish_knowledge with the relevant conversation excerpt)
+AI:    (loads the knowledge_article_guidelines prompt, structures the article itself,
+       then calls publish_knowledge with title/description/category/tags/content)
        The article has been submitted as a Pull Request for review — it is not published yet.
 ```
 
@@ -232,13 +244,10 @@ AI:    (calls publish_knowledge with the relevant conversation excerpt)
 | Environment variable | Default | Description |
 |---|---|---|
 | `KNOWLEDGE_DIR` | `./knowledge` | Root folder of the local Markdown knowledge base used by `search_knowledge` / `get_knowledge` |
-| `GEMINI_API_KEY` | — | **Required for `publish_knowledge`.** API key for the Gemini (Google AI) call used to generate the article. Get one in [Google AI Studio](https://aistudio.google.com/apikey) |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for article generation |
-| `LLM_PROVIDER` | `gemini` | LLM provider selection. The provider implementation is isolated in [`llm.py`](llm.py); add a provider there to swap Gemini without touching the MCP tools |
 | `GITHUB_TOKEN` | — | **Required for `publish_knowledge`.** GitHub token used to create the contribution branch, commit the article and open the Pull Request. Minimum permissions: fine-grained PAT with **Contents: read and write** + **Pull requests: write** on `pcescato/shared-knowledge` only (classic PAT: `repo` scope) |
 | `GITHUB_REPO` | `pcescato/shared-knowledge` | Repository of record — the source of truth for community knowledge |
 
-No credentials are hard-coded: everything is read from environment variables. The article is requested as **structured JSON** constrained by a Pydantic schema (`ArticleDraft` in `llm.py`) — the LLM can never pick an arbitrary category (the list is enforced in the prompt and re-validated against `CATEGORIES` afterwards), and any API or malformed-response failure surfaces as a clean `error` from `publish_knowledge` rather than a fabricated article.
+No credentials are hard-coded: everything is read from environment variables. The server performs no LLM call: articles arrive already structured from the caller, and any structuring or validation failure surfaces as a clean `rejected`/`error` result from `publish_knowledge` rather than a fabricated article.
 
 ### Publication workflow (GitHub)
 
@@ -254,16 +263,11 @@ GitHub authentication credentials used by the MCP must never be committed to the
 
 ## Content pipeline
 
-When `publish_knowledge` is invoked, the MCP:
+When `publish_knowledge` is invoked, the caller has already structured the article (guided by the `knowledge_article_guidelines` prompt); the MCP then:
 
-1. **Extracts** the relevant knowledge from the conversation excerpt;
-2. **Removes** conversational noise (no "as I said above", no references to the user, the AI or the conversation, no trial-and-error);
-3. **Produces** a standalone explanation readable without the original conversation;
-4. **Translates** it into English — as native technical documentation, not a literal translation;
-5. **Determines** the category from the controlled vocabulary;
-6. **Generates** tags;
-7. **Validates** the resulting structure (required sections, category, tags) and runs the **secret scan**;
-8. **Creates** a branch, commits `knowledge/<category>/<slug>.md` and opens a Pull Request.
+1. **Builds** the article record from the five required fields (no generation, no LLM call);
+2. **Validates** the structure (required sections, category, tags) and runs the **secret scan**;
+3. **Creates** a branch, commits `knowledge/<category>/<slug>.md` and opens a Pull Request.
 
 ### Required article structure
 
@@ -286,19 +290,19 @@ A concise explanation of the underlying reasoning.
 Important limitations, assumptions or things to verify.
 ```
 
-The MVP enforces `## Problem` and `## Solution`; the other sections may be omitted when genuinely not applicable.
+The MCP enforces `## Problem` and `## Solution`; the other sections may be omitted when genuinely not applicable. The full structuring rules are exposed to callers through the `knowledge_article_guidelines` prompt.
 
 ## Classification & tags
 
-Every article gets **exactly one primary category**, chosen by the MCP/LLM from a fixed controlled vocabulary (categories are **not user-defined**, which prevents uncontrolled proliferation):
+Every article gets **exactly one primary category**, chosen by the caller (the user's AI assistant) from a fixed controlled vocabulary (categories are **not user-defined**, which prevents uncontrolled proliferation):
 
 `AI` · `Backend` · `Cloud` · `Databases` · `DevOps` · `Frontend` · `Hardware` · `Linux` · `Security` · `Web Development` · `Programming` · `Open Source` · `Tools` · `Other`
 
-Tags are generated from the content, preferring existing tags when appropriate (a new tag only when no existing one fits). Tags must be lowercase, concise, technically meaningful, reusable and free of unnecessary punctuation.
+Tags are chosen by the caller from the content, preferring existing tags when appropriate (a new tag only when no existing one fits). Tags must be lowercase, concise, technically meaningful, reusable and free of unnecessary punctuation.
 
 ## Article format
 
-Each article uses standardized YAML frontmatter, generated and validated by the MCP (the user does not directly control category or tags):
+Each article uses standardized YAML frontmatter, built from the caller-provided fields and validated by the MCP (the user does not directly control category or tags):
 
 ```yaml
 ---
@@ -337,7 +341,7 @@ AI-based moderation is advisory. **Human maintainers remain the final authority.
 
 ### Privacy
 
-The project never publishes complete AI conversations — only the generated knowledge article. Publication is explicitly user-triggered. Generated content is scanned to avoid including names, email addresses, credentials, API keys, tokens, private URLs or internal infrastructure details.
+The project never publishes complete AI conversations — only the structured knowledge article submitted by the caller. Publication is explicitly user-triggered. Submitted content is scanned to avoid including names, email addresses, credentials, API keys, tokens, private URLs or internal infrastructure details.
 
 > **Private conversation, public knowledge.**
 
@@ -413,12 +417,11 @@ npm run preview   # preview the production build locally
 
 ```text
 shared-knowledge-mcp/
-├── server.py                  # MCP server (search / get / publish tools)
-├── llm.py                     # Isolated LLM provider (Gemini, structured output)
+├── server.py                  # MCP server (search / get / publish tools + guidelines prompt)
 ├── github.py                  # Isolated GitHub publisher (branch → commit → PR)
 ├── Shared Knowledge MCP.md    # Functional & technical specification
 ├── pyproject.toml             # Packaging & dependencies (Python 3.10+)
-├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation)
+├── tests/                     # pytest suite (frontmatter, search, get_knowledge, validation, prompt contract)
 ├── scripts/
 │   └── generate_audio.py      # ElevenLabs TTS for merged articles (CI)
 ├── .github/workflows/
@@ -473,7 +476,7 @@ You can also open a Pull Request manually: add a Markdown article under `knowled
 ### As a code contributor
 
 1. Fork the repository and create a feature branch;
-2. Make your changes (both external integrations — [`llm.py`](llm.py) and [`github.py`](github.py) — are small and self-contained, good places to start);
+2. Make your changes (the external integration — [`github.py`](github.py) — is small and self-contained, a good place to start);
 3. Run the test suite: `pytest`;
 4. Test the server locally with `mcp dev server.py`;
 5. Open a Pull Request.

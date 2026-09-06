@@ -1,0 +1,5 @@
+# Core dependencies � required to import server.py and run search/get/publish
+mcp>=1.2,<2
+pydantic>=2,<3
+python-frontmatter>=1.1,<2
+httpx>=0.27,<1
