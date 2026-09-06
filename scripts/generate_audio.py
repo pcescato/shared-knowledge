@@ -143,8 +143,10 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
 # ---------------------------------------------------------------------------
         
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
+    url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
+    print(f"[DEBUG] synthesize: voice_id={repr(voice_id)}, url={url}", file=sys.stderr)
     request = urllib.request.Request(
-        ELEVENLABS_TTS_URL.format(voice_id=voice_id),
+        url,
         data=json.dumps({"text": text, "model_id": model_id}).encode("utf-8"),
         headers={
             "xi-api-key": api_key,
