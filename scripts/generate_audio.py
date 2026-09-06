@@ -144,7 +144,9 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
         
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
     url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
-    print(f"[DEBUG] synthesize: voice_id={repr(voice_id)}, url={url}", file=sys.stderr)
+    # Debug: print only first/last chars to avoid GitHub secret masking
+    voice_id_preview = f"{voice_id[:3]}...{voice_id[-3:]}" if len(voice_id) > 6 else voice_id
+    print(f"[DEBUG] synthesize: voice_id_preview={voice_id_preview}, url_len={len(url)}", file=sys.stderr)
     request = urllib.request.Request(
         url,
         data=json.dumps({"text": text, "model_id": model_id}).encode("utf-8"),
