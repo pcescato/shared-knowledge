@@ -1,1 +1,17 @@
-{}
+{
+  "knowledge/databases/postgres-isolation-levels.md": {
+    "audio": "site/public/audio/databases/postgres-isolation-levels.mp3",
+    "generated_at": "2026-09-06T11:18:13+00:00",
+    "hash": "5e70e3b484530f9b3d595929724fe9a0d411dff4d5cb9d6c8ff49ffa9eea32e1"
+  },
+  "knowledge/devops/caddy-authentik-streamlit.md": {
+    "audio": "site/public/audio/devops/caddy-authentik-streamlit.mp3",
+    "generated_at": "2026-09-06T11:18:22+00:00",
+    "hash": "c8ab1599186154c0ca8c9b4d9e455e20672aab5accd0223c37b55186da4cab1e"
+  },
+  "knowledge/programming/optional-dependency-crashes-the-import-chain-when-the-import-itself-isn-t-option.md": {
+    "audio": "site/public/audio/programming/optional-dependency-crashes-the-import-chain-when-the-import-itself-isn-t-option.mp3",
+    "generated_at": "2026-09-06T11:18:45+00:00",
+    "hash": "aebd490d42acadc29d2e6e50fe771e5ca310b9843732e0997ccbbfad3d5152d5"
+  }
+}
