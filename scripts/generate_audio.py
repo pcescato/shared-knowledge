@@ -193,6 +193,7 @@ def main() -> int:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    print(f"[DEBUG] voice_id={voice_id!r} len={len(voice_id) if voice_id else 0}", file=sys.stderr)
     print(f"[DEBUG] voice_id={voice_id!r} length={len(voice_id or '')}", file=sys.stderr)
     if not api_key or not voice_id:
         print(
