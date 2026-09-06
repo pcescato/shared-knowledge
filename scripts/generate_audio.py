@@ -216,6 +216,7 @@ def main() -> int:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    print(f"[DEBUG-CI] voice_id={voice_id!r} len={len(voice_id) if voice_id else 0} api_key_len={len(api_key) if api_key else 0}", file=sys.stderr)
     
     # Debug: check what Python received
     print(f"[DEBUG] voice_id from env: {repr(voice_id)}, len={len(voice_id) if voice_id else 'None'}", file=sys.stderr)
