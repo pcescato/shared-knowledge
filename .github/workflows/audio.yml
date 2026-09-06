@@ -97,6 +97,9 @@ jobs:
       - name: Commit audio artifacts
         if: always() && steps.diff.outputs.changed == 'true'
         run: |
+          # Zero successful articles means no audio directory exists at all;
+          # mkdir -p keeps `git add` from failing on the missing pathspec.
+          mkdir -p site/public/audio
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add site/public/audio .audio_manifest.json
