@@ -197,6 +197,7 @@ def main() -> int:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    print(f"[CHECK] voice_id={voice_id!r}", file=sys.stderr)
     if not api_key or not voice_id:
         print(
             "ERROR: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set "
