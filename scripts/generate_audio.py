@@ -144,17 +144,22 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
         
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
     url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
-    # Debug: print only first/last chars to avoid GitHub secret masking
     voice_id_preview = f"{voice_id[:3]}...{voice_id[-3:]}" if len(voice_id) > 6 else voice_id
-    print(f"[DEBUG] synthesize: voice_id_preview={voice_id_preview}, url_len={len(url)}", file=sys.stderr)
+    api_key_preview = f"{api_key[:6]}...{api_key[-6:]}" if len(api_key) > 12 else "?"
+    print(f"[DEBUG] synthesize: voice_id_preview={voice_id_preview}, api_key_preview={api_key_preview}, url_len={len(url)}", file=sys.stderr)
+    
+    body = json.dumps({"text": text, "model_id": model_id}).encode("utf-8")
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    print(f"[DEBUG] request: url={url}, body_len={len(body)}, headers keys={list(headers.keys())}", file=sys.stderr)
+    
     request = urllib.request.Request(
         url,
-        data=json.dumps({"text": text, "model_id": model_id}).encode("utf-8"),
-        headers={
-            "xi-api-key": api_key,
-            "Content-Type": "application/json",
-            "Accept": "audio/mpeg",
-        },
+        data=body,
+        headers=headers,
         method="POST",
     )
     try:
