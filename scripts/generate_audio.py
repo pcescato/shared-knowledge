@@ -191,7 +191,7 @@ def main() -> int:
     args = parser.parse_args()
 
     api_key = os.environ.get("ELEVENLABS_API_KEY")
-    voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
+    voice_id = os.environ.get("ELEVENLABS_VOICE_ID") or os.environ.get("ELEVENLABS_VOICE_ID_TEST")
     model_id = os.environ.get("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
     if not api_key or not voice_id:
         print(
