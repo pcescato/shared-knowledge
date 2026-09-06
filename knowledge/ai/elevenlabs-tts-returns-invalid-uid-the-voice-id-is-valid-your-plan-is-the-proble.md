@@ -1,9 +1,7 @@
 ---
 category: AI
 created_at: '2026-09-06'
-description: An HTTP 400 invalid_uid error from the ElevenLabs Text-to-Speech API
-  can mean the voice belongs to the shared Voice Library, which is not usable via
-  API on the Free plan.
+description: 'An HTTP 400 invalid_uid error from the ElevenLabs Text-to-Speech API can mean the voice belongs to the shared Voice Library, which is not usable via API on the Free plan.'
 source: community
 tags:
 - elevenlabs
