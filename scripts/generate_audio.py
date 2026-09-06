@@ -141,10 +141,8 @@ def needs_generation(article_rel: str, md: str, audio_file: Path, manifest: dict
 # ---------------------------------------------------------------------------
 # ElevenLabs API
 # ---------------------------------------------------------------------------
-
-
+        
 def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
-    """Call the ElevenLabs text-to-speech endpoint and return audio bytes."""
     request = urllib.request.Request(
         ELEVENLABS_TTS_URL.format(voice_id=voice_id),
         data=json.dumps({"text": text, "model_id": model_id}).encode("utf-8"),
@@ -155,8 +153,12 @@ def synthesize(text: str, api_key: str, voice_id: str, model_id: str) -> bytes:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return response.read()
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise urllib.error.HTTPError(exc.url, exc.code, f"{exc.reason}: {detail}", exc.headers, exc.fp) from exc        
 
 
 # ---------------------------------------------------------------------------
