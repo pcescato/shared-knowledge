@@ -173,18 +173,12 @@ Requirements:
 - Python 3.10+
 - For `publish_knowledge`: a GitHub token — see [Configuration](#configuration)
 
-Dependencies (`mcp`, `pydantic`, `python-frontmatter`, `httpx`) are declared in `pyproject.toml`. Install the project in editable mode with its dev tools:
+Dependencies (`mcp`, `pydantic`, `python-frontmatter`, `httpx`) are declared in `pyproject.toml`. A single command installs everything — including the `httpx` dependency used by `publish_knowledge` — no extra is needed:
 
 ```bash
 git clone https://github.com/pcescato/shared-knowledge.git
 cd shared-knowledge
 pip install -e . --group dev
-```
-
-To use `publish_knowledge`, install the publishing extra (GitHub publication):
-
-```bash
-pip install -e '.[publishing]' --group dev
 ```
 
 > Using `pip` < 25.1 or another tool? The equivalent is `pip install -e . && pip install pytest` (or `uv sync --dev` with [uv](https://docs.astral.sh/uv/)).
@@ -221,6 +215,27 @@ python server.py
   }
 }
 ```
+
+**VS Code + GitHub Copilot Chat** (Agent mode) via a project-level `.vscode/mcp.json` in `shared-knowledge/`:
+
+```json
+{
+  "servers": {
+    "shared-knowledge": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/python3",
+      "args": ["${workspaceFolder}/server.py"],
+      "env": {
+        "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+        "GITHUB_REPO": "pcescato/shared-knowledge",
+        "KNOWLEDGE_DIR": "${workspaceFolder}/knowledge"
+      }
+    }
+  }
+}
+```
+
+This works both locally and in a GitHub Codespace; in the latter case no local installation is required.
 
 Or point a **claude.ai / other MCP-compatible connector** config at the same script.
 
@@ -425,7 +440,8 @@ shared-knowledge-mcp/
 ├── scripts/
 │   └── generate_audio.py      # ElevenLabs TTS for merged articles (CI)
 ├── .github/workflows/
-│   └── audio.yml              # Audio generation after merge (human review first)
+│   ├── audio.yml              # Audio generation after merge (human review first)
+│   └── deploy.yml             # Build site/ and publish to GitHub Pages
 ├── knowledge/                 # Markdown knowledge base (YAML frontmatter)
 │   ├── ai/
 │   ├── backend/
@@ -445,9 +461,6 @@ shared-knowledge-mcp/
 │   ├── src/pages/             # Homepage, category/tag/article pages
 │   ├── src/lib/knowledge.js   # URL/audio contract helpers (mirrors slugify)
 │   └── public/audio/          # ElevenLabs artifacts (generated, committed)
-├── .github/workflows/
-│   ├── audio.yml              # Audio generation after merge (human review first)
-│   └── deploy.yml             # Build site/ and publish to GitHub Pages
 ├── README.md
 └── LICENSE
 ```

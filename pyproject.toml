@@ -27,12 +27,10 @@ dependencies = [
     "mcp>=1.2,<2",
     "pydantic>=2,<3",
     "python-frontmatter>=1.1,<2",
+    # httpx is imported unconditionally by github.py (publish_knowledge),
+    # so it is a real runtime dependency, not an optional extra.
+    "httpx>=0.27,<1",
 ]
-
-[project.optional-dependencies]
-# publish_knowledge provider (kept optional so the search/get tools work
-# without it).
-publishing = ["httpx>=0.27,<1"]
 
 [dependency-groups]
 dev = [
